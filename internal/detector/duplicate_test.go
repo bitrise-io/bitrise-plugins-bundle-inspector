@@ -49,10 +49,13 @@ func TestDuplicateDetector(t *testing.T) {
 		if dup.Count != 2 {
 			t.Errorf("Expected 2 duplicates, got %d", dup.Count)
 		}
-		if dup.Size != int64(len(content1)) {
-			t.Errorf("Expected size %d, got %d", len(content1), dup.Size)
+		// With block alignment (4 KB), even small files occupy a full block
+		expectedBlockAlignedSize := int64(4096) // blockSize constant
+		if dup.Size != expectedBlockAlignedSize {
+			t.Errorf("Expected block-aligned size %d, got %d", expectedBlockAlignedSize, dup.Size)
 		}
-		expectedWasted := int64(len(content1))
+		// Wasted size is (count - 1) * block-aligned size
+		expectedWasted := expectedBlockAlignedSize
 		if dup.WastedSize != expectedWasted {
 			t.Errorf("Expected wasted size %d, got %d", expectedWasted, dup.WastedSize)
 		}
