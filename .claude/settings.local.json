@@ -14,7 +14,8 @@
       "Bash(go mod tidy:*)",
       "Bash(go doc:*)",
       "Bash(dwarfdump:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls:*)"
     ]
   }
 }

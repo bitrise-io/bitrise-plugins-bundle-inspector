@@ -3,10 +3,13 @@ package util
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/compression"
 )
 
 // ExtractZip extracts a ZIP archive to a temporary directory and returns the path.
@@ -62,7 +65,31 @@ func extractZipFile(f *zip.File, destDir string) error {
 	}
 	defer outFile.Close()
 
-	// Open source file
+	// Check if file uses LZFSE compression (method 99)
+	if f.Method == compression.CompressionMethodLZFSE {
+		// Read compressed data using OpenRaw (returns io.Reader)
+		rawReader, err := f.OpenRaw()
+		if err != nil {
+			return fmt.Errorf("failed to open LZFSE compressed file: %w", err)
+		}
+
+		compressedData, err := io.ReadAll(rawReader)
+		if err != nil {
+			return fmt.Errorf("failed to read LZFSE compressed data: %w", err)
+		}
+
+		// Decompress with LZFSE
+		decompressed, err := compression.DecompressLZFSE(compressedData)
+		if err != nil {
+			return fmt.Errorf("LZFSE decompression failed for %s: %w\nHint: This IPA uses LZFSE compression (method 99). Make sure LZFSE support is enabled.", f.Name, err)
+		}
+
+		// Write decompressed content
+		_, err = io.Copy(outFile, bytes.NewReader(decompressed))
+		return err
+	}
+
+	// Standard decompression (DEFLATE, STORE, etc.)
 	rc, err := f.Open()
 	if err != nil {
 		return err
