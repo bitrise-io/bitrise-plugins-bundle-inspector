@@ -1,0 +1,78 @@
+// Package types provides public API types for the bundle inspector.
+package types
+
+import "time"
+
+// ArtifactType represents the type of mobile artifact being analyzed.
+type ArtifactType string
+
+const (
+	ArtifactTypeIPA       ArtifactType = "ipa"
+	ArtifactTypeAPK       ArtifactType = "apk"
+	ArtifactTypeAAB       ArtifactType = "aab"
+	ArtifactTypeXCArchive ArtifactType = "xcarchive"
+	ArtifactTypeApp       ArtifactType = "app"
+)
+
+// ArtifactInfo contains basic information about the analyzed artifact.
+type ArtifactInfo struct {
+	Path             string       `json:"path"`
+	Type             ArtifactType `json:"type"`
+	Size             int64        `json:"size"`
+	UncompressedSize int64        `json:"uncompressed_size,omitempty"`
+	AnalyzedAt       time.Time    `json:"analyzed_at"`
+}
+
+// SizeBreakdown provides a categorized breakdown of artifact size.
+type SizeBreakdown struct {
+	Executable  int64            `json:"executable"`
+	Frameworks  int64            `json:"frameworks"`
+	Resources   int64            `json:"resources"`
+	Assets      int64            `json:"assets"`
+	Libraries   int64            `json:"libraries"`
+	DEX         int64            `json:"dex,omitempty"`
+	Other       int64            `json:"other"`
+	ByCategory  map[string]int64 `json:"by_category,omitempty"`
+	ByExtension map[string]int64 `json:"by_extension,omitempty"`
+}
+
+// FileNode represents a file or directory in the artifact tree.
+type FileNode struct {
+	Path     string      `json:"path"`
+	Name     string      `json:"name"`
+	Size     int64       `json:"size"`
+	IsDir    bool        `json:"is_dir"`
+	Children []*FileNode `json:"children,omitempty"`
+}
+
+// DuplicateSet represents a group of duplicate files.
+type DuplicateSet struct {
+	Hash       string   `json:"hash"`
+	Size       int64    `json:"size"`
+	Count      int      `json:"count"`
+	Files      []string `json:"files"`
+	WastedSize int64    `json:"wasted_size"` // (count - 1) * size
+}
+
+// Optimization represents a potential size optimization.
+type Optimization struct {
+	Category    string   `json:"category"`    // "duplicates", "compression", "architecture", etc.
+	Severity    string   `json:"severity"`    // "high", "medium", "low"
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Impact      int64    `json:"impact"`       // Estimated savings in bytes
+	Files       []string `json:"files"`
+	Action      string   `json:"action"`       // Suggested action
+}
+
+// Report contains the complete analysis results.
+type Report struct {
+	ArtifactInfo   ArtifactInfo           `json:"artifact_info"`
+	SizeBreakdown  SizeBreakdown          `json:"size_breakdown"`
+	FileTree       []*FileNode            `json:"file_tree"`
+	Duplicates     []DuplicateSet         `json:"duplicates,omitempty"`
+	Optimizations  []Optimization         `json:"optimizations,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	LargestFiles   []FileNode             `json:"largest_files,omitempty"`
+	TotalSavings   int64                  `json:"total_savings,omitempty"`
+}

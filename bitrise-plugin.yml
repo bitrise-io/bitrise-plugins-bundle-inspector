@@ -1,0 +1,13 @@
+name: bundle-inspector
+description: |
+  Analyze mobile artifacts (iOS .ipa/.app and Android .apk/.aab) for size
+  optimization opportunities. Detects duplicates, bloat, and provides
+  actionable recommendations.
+executable:
+  osx: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/v{version}/bundle-inspector-darwin-amd64
+  osx-arm64: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/v{version}/bundle-inspector-darwin-arm64
+  linux: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/v{version}/bundle-inspector-linux-amd64
+trigger: ""
+requirements:
+  - tool: bitrise
+    min_version: "1.41.0"
