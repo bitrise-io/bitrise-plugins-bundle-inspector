@@ -84,20 +84,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	// Convert binaries map to macho.BinaryInfo for dependency graph
-	machoBinaries := make(map[string]*macho.BinaryInfo)
-	for path, binInfo := range binaries {
-		machoBinaries[path] = &macho.BinaryInfo{
-			Architecture:     binInfo.Architecture,
-			Architectures:    binInfo.Architectures,
-			Type:             binInfo.Type,
-			CodeSize:         binInfo.CodeSize,
-			DataSize:         binInfo.DataSize,
-			LinkedLibraries:  binInfo.LinkedLibraries,
-			RPaths:           binInfo.RPaths,
-			HasDebugSymbols:  binInfo.HasDebugSymbols,
-			DebugSymbolsSize: binInfo.DebugSymbolsSize,
-		}
-	}
+	machoBinaries := ConvertBinariesMapToMacho(binaries)
 
 	// Build dependency graph from binaries
 	depGraph := macho.BuildDependencyGraph(machoBinaries)
@@ -118,7 +105,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	sizeBreakdown := categorizeSizes(fileTree)
 
 	// Find largest files
-	largestFiles := findLargestFiles(fileTree, 10)
+	largestFiles := util.FindLargestFiles(fileTree, 10)
 
 	// Prepare optimizations list
 	var optimizations []types.Optimization
@@ -175,20 +162,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Convert frameworks to types.FrameworkInfo
 	typedFrameworks := make([]*types.FrameworkInfo, len(frameworks))
 	for i, fw := range frameworks {
-		var binInfo *types.BinaryInfo
-		if fw.BinaryInfo != nil {
-			binInfo = &types.BinaryInfo{
-				Architecture:     fw.BinaryInfo.Architecture,
-				Architectures:    fw.BinaryInfo.Architectures,
-				Type:             fw.BinaryInfo.Type,
-				CodeSize:         fw.BinaryInfo.CodeSize,
-				DataSize:         fw.BinaryInfo.DataSize,
-				LinkedLibraries:  fw.BinaryInfo.LinkedLibraries,
-				RPaths:           fw.BinaryInfo.RPaths,
-				HasDebugSymbols:  fw.BinaryInfo.HasDebugSymbols,
-				DebugSymbolsSize: fw.BinaryInfo.DebugSymbolsSize,
-			}
-		}
+		binInfo := ConvertToTypesBinaryInfo(fw.BinaryInfo)
 		typedFrameworks[i] = &types.FrameworkInfo{
 			Name:         fw.Name,
 			Path:         fw.Path,
@@ -385,38 +359,6 @@ func categorizeSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	}
 
 	return breakdown
-}
-
-// findLargestFiles returns the N largest files from the tree.
-func findLargestFiles(nodes []*types.FileNode, n int) []types.FileNode {
-	var files []types.FileNode
-
-	var collectFiles func(node *types.FileNode)
-	collectFiles = func(node *types.FileNode) {
-		if node.IsDir {
-			for _, child := range node.Children {
-				collectFiles(child)
-			}
-		} else {
-			files = append(files, *node)
-		}
-	}
-
-	for _, node := range nodes {
-		collectFiles(node)
-	}
-
-	// Sort by size descending
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Size > files[j].Size
-	})
-
-	// Return top N
-	if len(files) > n {
-		files = files[:n]
-	}
-
-	return files
 }
 
 // isStickerExtensionBinary checks if a file path points to a stickers extension binary.

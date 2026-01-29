@@ -1,9 +1,12 @@
 package detector
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
 // LooseImage represents an image outside asset catalogs
@@ -69,4 +72,47 @@ func DetectLooseImages(rootPath string) ([]LooseImage, error) {
 	})
 
 	return looseImages, err
+}
+
+// LooseImagesDetector implements the Detector interface
+type LooseImagesDetector struct{}
+
+// NewLooseImagesDetector creates a new loose images detector
+func NewLooseImagesDetector() *LooseImagesDetector {
+	return &LooseImagesDetector{}
+}
+
+// Name returns the detector name
+func (d *LooseImagesDetector) Name() string {
+	return "loose-images"
+}
+
+// Detect runs the detector and returns a single aggregated optimization
+func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, error) {
+	mapper := NewPathMapper(rootPath)
+	looseImages, err := DetectLooseImages(rootPath)
+	if err != nil || len(looseImages) == 0 {
+		return nil, err
+	}
+
+	var totalSize int64
+	var files []string
+	for _, img := range looseImages {
+		totalSize += img.Size
+		files = append(files, mapper.ToRelative(img.Path))
+	}
+
+	if totalSize <= 10*1024 {
+		return nil, nil // Skip if too small
+	}
+
+	return []types.Optimization{{
+		Category:    "loose-images",
+		Severity:    "low",
+		Title:       fmt.Sprintf("Move %d loose images to asset catalog", len(files)),
+		Description: "Images outside asset catalogs don't benefit from app thinning and asset compression",
+		Impact:      totalSize / 4, // 25% estimated savings
+		Files:       files,
+		Action:      "Move images to .xcassets and use asset catalog compilation",
+	}}, nil
 }

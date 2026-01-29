@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -67,13 +67,13 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	// Build file tree and calculate sizes
-	fileTree, uncompressedSize := buildAPKFileTree(&zipReader.Reader)
+	fileTree, uncompressedSize := util.BuildZipFileTree(&zipReader.Reader)
 
 	// Create size breakdown
 	sizeBreakdown := categorizeAPKSizes(fileTree)
 
 	// Find largest files
-	largestFiles := findLargestAPKFiles(fileTree, 10)
+	largestFiles := util.FindLargestFiles(fileTree, 10)
 
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
@@ -116,90 +116,6 @@ func parseManifest(apkPath string) (map[string]interface{}, error) {
 	// Full parsing can be added in future phases
 
 	return manifest, nil
-}
-
-// buildAPKFileTree constructs a file tree from APK contents
-func buildAPKFileTree(zipReader *zip.Reader) ([]*types.FileNode, int64) {
-	// Build a map of all files first
-	fileMap := make(map[string]*types.FileNode)
-	var totalSize int64
-
-	// Create nodes for all files
-	for _, f := range zipReader.File {
-		parts := strings.Split(f.Name, "/")
-		currentPath := ""
-
-		for i, part := range parts {
-			if part == "" {
-				continue
-			}
-
-			parentPath := currentPath
-			if currentPath == "" {
-				currentPath = part
-			} else {
-				currentPath = currentPath + "/" + part
-			}
-
-			// Check if node already exists
-			if _, exists := fileMap[currentPath]; exists {
-				continue
-			}
-
-			// Create node
-			isDir := i < len(parts)-1 || f.FileInfo().IsDir()
-			node := &types.FileNode{
-				Path:     currentPath,
-				Name:     part,
-				IsDir:    isDir,
-				Children: []*types.FileNode{},
-			}
-
-			if !isDir {
-				node.Size = int64(f.UncompressedSize64)
-				totalSize += node.Size
-			}
-
-			fileMap[currentPath] = node
-
-			// Link to parent
-			if parentPath != "" {
-				if parent, exists := fileMap[parentPath]; exists {
-					parent.Children = append(parent.Children, node)
-				}
-			}
-		}
-	}
-
-	// Calculate directory sizes and collect root nodes
-	var rootNodes []*types.FileNode
-	for _, node := range fileMap {
-		if !strings.Contains(node.Path, "/") {
-			rootNodes = append(rootNodes, node)
-		}
-		if node.IsDir {
-			node.Size = calculateDirSize(node)
-		}
-	}
-
-	return rootNodes, totalSize
-}
-
-// calculateDirSize recursively calculates directory size
-func calculateDirSize(node *types.FileNode) int64 {
-	if !node.IsDir {
-		return node.Size
-	}
-
-	var total int64
-	for _, child := range node.Children {
-		if child.IsDir {
-			total += calculateDirSize(child)
-		} else {
-			total += child.Size
-		}
-	}
-	return total
 }
 
 // categorizeAPKSizes creates a size breakdown for APK
@@ -265,36 +181,4 @@ func categorizeAPKSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	}
 
 	return breakdown
-}
-
-// findLargestAPKFiles returns the N largest files
-func findLargestAPKFiles(nodes []*types.FileNode, n int) []types.FileNode {
-	var files []types.FileNode
-
-	var collectFiles func(node *types.FileNode)
-	collectFiles = func(node *types.FileNode) {
-		if node.IsDir {
-			for _, child := range node.Children {
-				collectFiles(child)
-			}
-		} else {
-			files = append(files, *node)
-		}
-	}
-
-	for _, node := range nodes {
-		collectFiles(node)
-	}
-
-	// Sort by size descending
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Size > files[j].Size
-	})
-
-	// Return top N
-	if len(files) > n {
-		files = files[:n]
-	}
-
-	return files
 }

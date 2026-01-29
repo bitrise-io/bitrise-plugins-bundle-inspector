@@ -62,19 +62,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	// Convert binaries map to macho.BinaryInfo for dependency graph
-	machoBinaries := make(map[string]*macho.BinaryInfo)
-	for fwPath, binInfo := range binaries {
-		machoBinaries[fwPath] = &macho.BinaryInfo{
-			Architecture:    binInfo.Architecture,
-			Architectures:   binInfo.Architectures,
-			Type:            binInfo.Type,
-			CodeSize:        binInfo.CodeSize,
-			DataSize:        binInfo.DataSize,
-			LinkedLibraries: binInfo.LinkedLibraries,
-			RPaths:          binInfo.RPaths,
-			HasDebugSymbols: binInfo.HasDebugSymbols,
-		}
-	}
+	machoBinaries := ConvertBinariesMapToMacho(binaries)
 
 	// Build dependency graph from binaries
 	depGraph := macho.BuildDependencyGraph(machoBinaries)
@@ -95,7 +83,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	sizeBreakdown := categorizeSizes(fileTree)
 
 	// Find largest files
-	largestFiles := findLargestFiles(fileTree, 10)
+	largestFiles := util.FindLargestFiles(fileTree, 10)
 
 	// Prepare optimizations list
 	var optimizations []types.Optimization
@@ -146,19 +134,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Convert frameworks to types.FrameworkInfo
 	typedFrameworks := make([]*types.FrameworkInfo, len(frameworks))
 	for i, fw := range frameworks {
-		var binInfo *types.BinaryInfo
-		if fw.BinaryInfo != nil {
-			binInfo = &types.BinaryInfo{
-				Architecture:    fw.BinaryInfo.Architecture,
-				Architectures:   fw.BinaryInfo.Architectures,
-				Type:            fw.BinaryInfo.Type,
-				CodeSize:        fw.BinaryInfo.CodeSize,
-				DataSize:        fw.BinaryInfo.DataSize,
-				LinkedLibraries: fw.BinaryInfo.LinkedLibraries,
-				RPaths:          fw.BinaryInfo.RPaths,
-				HasDebugSymbols: fw.BinaryInfo.HasDebugSymbols,
-			}
-		}
+		binInfo := ConvertToTypesBinaryInfo(fw.BinaryInfo)
 		typedFrameworks[i] = &types.FrameworkInfo{
 			Name:         fw.Name,
 			Path:         fw.Path,

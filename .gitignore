@@ -50,3 +50,8 @@ test-artifacts/**/*.json
 *.html
 report.json
 report.txt
+
+# Generated documentation files
+**/PHASE*_COMPLETE.md
+IMPLEMENTATION_SUMMARY.md
+INTEGRATION_TEST_REPORT.md
