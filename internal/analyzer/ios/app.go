@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -87,6 +88,9 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		unusedFrameworks = macho.DetectUnusedFrameworks(depGraph, mainBinaryPath)
 	}
 
+	// Parse asset catalogs
+	assetCatalogs := parseAssetCatalogs(fileTree, path)
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 
@@ -122,6 +126,23 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
+	// Add optimization suggestions for oversized assets
+	for _, catalog := range assetCatalogs {
+		for _, asset := range catalog.LargestAssets {
+			if asset.Size > 1*1024*1024 { // >1MB
+				optimizations = append(optimizations, types.Optimization{
+					Category:    "assets",
+					Severity:    "low",
+					Title:       fmt.Sprintf("Large asset: %s", asset.Name),
+					Description: fmt.Sprintf("Asset is %s", util.FormatBytes(asset.Size)),
+					Files:       []string{asset.Name},
+					Impact:      asset.Size,
+					Action:      "Consider compressing or resizing asset",
+				})
+			}
+		}
+	}
+
 	// Convert frameworks to types.FrameworkInfo
 	typedFrameworks := make([]*types.FrameworkInfo, len(frameworks))
 	for i, fw := range frameworks {
@@ -148,6 +169,28 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
+	// Convert asset catalogs to types.AssetCatalogInfo
+	typedAssetCatalogs := make([]*types.AssetCatalogInfo, len(assetCatalogs))
+	for i, catalog := range assetCatalogs {
+		largestAssets := make([]types.AssetInfo, len(catalog.LargestAssets))
+		for j, asset := range catalog.LargestAssets {
+			largestAssets[j] = types.AssetInfo{
+				Name:  asset.Name,
+				Type:  asset.Type,
+				Scale: asset.Scale,
+				Size:  asset.Size,
+			}
+		}
+		typedAssetCatalogs[i] = &types.AssetCatalogInfo{
+			Path:          catalog.Path,
+			TotalSize:     catalog.TotalSize,
+			AssetCount:    catalog.AssetCount,
+			ByType:        catalog.ByType,
+			ByScale:       catalog.ByScale,
+			LargestAssets: largestAssets,
+		}
+	}
+
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
 			Path:             path,
@@ -166,6 +209,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			"binaries":         binaries,
 			"frameworks":       typedFrameworks,
 			"dependency_graph": depGraph,
+			"asset_catalogs":   typedAssetCatalogs,
 		},
 	}
 

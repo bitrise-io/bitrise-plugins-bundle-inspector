@@ -13,7 +13,8 @@
       "Bash(go get:*)",
       "Bash(go mod tidy:*)",
       "Bash(go doc:*)",
-      "Bash(dwarfdump:*)"
+      "Bash(dwarfdump:*)",
+      "Bash(grep:*)"
     ]
   }
 }
