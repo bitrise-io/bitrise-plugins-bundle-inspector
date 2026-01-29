@@ -49,6 +49,9 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		return nil, fmt.Errorf("failed to analyze app bundle: %w", err)
 	}
 
+	// Analyze Mach-O binaries in file tree
+	binaries := analyzeMachOBinaries(fileTree, path)
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 
@@ -69,6 +72,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		Metadata: map[string]interface{}{
 			"app_bundle":   filepath.Base(path),
 			"is_directory": true,
+			"binaries":     binaries,
 		},
 	}
 

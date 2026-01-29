@@ -4,12 +4,14 @@ package ios
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -71,6 +73,9 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		return nil, fmt.Errorf("failed to analyze app bundle: %w", err)
 	}
 
+	// Analyze Mach-O binaries in file tree
+	binaries := analyzeMachOBinaries(fileTree, appBundlePath)
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 
@@ -90,6 +95,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		LargestFiles:  largestFiles,
 		Metadata: map[string]interface{}{
 			"app_bundle": filepath.Base(appBundlePath),
+			"binaries":   binaries,
 		},
 	}
 
@@ -268,4 +274,47 @@ func findLargestFiles(nodes []*types.FileNode, n int) []types.FileNode {
 	}
 
 	return files
+}
+
+// analyzeMachOBinaries scans the file tree for Mach-O binaries and parses them.
+func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*types.BinaryInfo {
+	binaries := make(map[string]*types.BinaryInfo)
+
+	var walkNodes func(node *types.FileNode)
+	walkNodes = func(node *types.FileNode) {
+		if node.IsDir {
+			for _, child := range node.Children {
+				walkNodes(child)
+			}
+			return
+		}
+
+		fullPath := filepath.Join(rootPath, node.Path)
+
+		// Detect Mach-O binaries by magic bytes
+		if macho.IsMachO(fullPath) {
+			if info, err := macho.ParseMachO(fullPath); err == nil {
+				// Convert internal BinaryInfo to types.BinaryInfo
+				binaries[node.Path] = &types.BinaryInfo{
+					Architecture:    info.Architecture,
+					Architectures:   info.Architectures,
+					Type:            info.Type,
+					CodeSize:        info.CodeSize,
+					DataSize:        info.DataSize,
+					LinkedLibraries: info.LinkedLibraries,
+					RPaths:          info.RPaths,
+					HasDebugSymbols: info.HasDebugSymbols,
+				}
+			} else {
+				// Graceful degradation: log warning, continue
+				log.Printf("Warning: Failed to parse Mach-O: %s: %v", node.Path, err)
+			}
+		}
+	}
+
+	for _, node := range nodes {
+		walkNodes(node)
+	}
+
+	return binaries
 }

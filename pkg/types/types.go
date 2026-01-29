@@ -76,3 +76,15 @@ type Report struct {
 	LargestFiles   []FileNode             `json:"largest_files,omitempty"`
 	TotalSavings   int64                  `json:"total_savings,omitempty"`
 }
+
+// BinaryInfo contains parsed Mach-O metadata (iOS binaries).
+type BinaryInfo struct {
+	Architecture    string   `json:"architecture"`
+	Architectures   []string `json:"architectures"`
+	Type            string   `json:"type"`
+	CodeSize        int64    `json:"code_size"`
+	DataSize        int64    `json:"data_size"`
+	LinkedLibraries []string `json:"linked_libraries"`
+	RPaths          []string `json:"rpaths,omitempty"`
+	HasDebugSymbols bool     `json:"has_debug_symbols"`
+}

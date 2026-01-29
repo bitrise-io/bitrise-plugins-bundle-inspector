@@ -8,7 +8,12 @@
       "Bash(go test:*)",
       "Bash(./bundle-inspector analyze:*)",
       "Bash(./scripts/run-integration-tests.sh:*)",
-      "Bash(./scripts/analyze-all-test-artifacts.sh:*)"
+      "Bash(./scripts/analyze-all-test-artifacts.sh:*)",
+      "Bash(otool:*)",
+      "Bash(go get:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go doc:*)",
+      "Bash(dwarfdump:*)"
     ]
   }
 }
