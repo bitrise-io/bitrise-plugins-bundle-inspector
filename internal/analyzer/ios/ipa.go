@@ -76,11 +76,99 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Analyze Mach-O binaries in file tree
 	binaries := analyzeMachOBinaries(fileTree, appBundlePath)
 
+	// Discover frameworks
+	frameworks, err := DiscoverFrameworks(appBundlePath)
+	if err != nil {
+		log.Printf("Warning: Failed to discover frameworks: %v", err)
+	}
+
+	// Convert binaries map to macho.BinaryInfo for dependency graph
+	machoBinaries := make(map[string]*macho.BinaryInfo)
+	for path, binInfo := range binaries {
+		machoBinaries[path] = &macho.BinaryInfo{
+			Architecture:    binInfo.Architecture,
+			Architectures:   binInfo.Architectures,
+			Type:            binInfo.Type,
+			CodeSize:        binInfo.CodeSize,
+			DataSize:        binInfo.DataSize,
+			LinkedLibraries: binInfo.LinkedLibraries,
+			RPaths:          binInfo.RPaths,
+			HasDebugSymbols: binInfo.HasDebugSymbols,
+		}
+	}
+
+	// Build dependency graph from binaries
+	depGraph := macho.BuildDependencyGraph(machoBinaries)
+
+	// Find main binary (typically the executable without extension at root)
+	mainBinaryPath := findMainBinary(fileTree)
+
+	// Detect unused frameworks
+	var unusedFrameworks []string
+	if mainBinaryPath != "" && len(depGraph) > 0 {
+		unusedFrameworks = macho.DetectUnusedFrameworks(depGraph, mainBinaryPath)
+	}
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 
 	// Find largest files
 	largestFiles := findLargestFiles(fileTree, 10)
+
+	// Prepare optimizations list
+	var optimizations []types.Optimization
+
+	// Add unused framework optimizations
+	for _, fwPath := range unusedFrameworks {
+		// Find framework info to get size
+		var fwSize int64
+		var fwName string
+		for _, fw := range frameworks {
+			if strings.Contains(fwPath, fw.Name) {
+				fwSize = fw.Size
+				fwName = fw.Name
+				break
+			}
+		}
+
+		if fwName != "" {
+			optimizations = append(optimizations, types.Optimization{
+				Category:    "frameworks",
+				Severity:    "medium",
+				Title:       fmt.Sprintf("Unused framework: %s", fwName),
+				Description: "Framework is not linked by main binary or other frameworks",
+				Action:      "Remove framework to reduce app size",
+				Files:       []string{fwPath},
+				Impact:      fwSize,
+			})
+		}
+	}
+
+	// Convert frameworks to types.FrameworkInfo
+	typedFrameworks := make([]*types.FrameworkInfo, len(frameworks))
+	for i, fw := range frameworks {
+		var binInfo *types.BinaryInfo
+		if fw.BinaryInfo != nil {
+			binInfo = &types.BinaryInfo{
+				Architecture:    fw.BinaryInfo.Architecture,
+				Architectures:   fw.BinaryInfo.Architectures,
+				Type:            fw.BinaryInfo.Type,
+				CodeSize:        fw.BinaryInfo.CodeSize,
+				DataSize:        fw.BinaryInfo.DataSize,
+				LinkedLibraries: fw.BinaryInfo.LinkedLibraries,
+				RPaths:          fw.BinaryInfo.RPaths,
+				HasDebugSymbols: fw.BinaryInfo.HasDebugSymbols,
+			}
+		}
+		typedFrameworks[i] = &types.FrameworkInfo{
+			Name:         fw.Name,
+			Path:         fw.Path,
+			Version:      fw.Version,
+			Size:         fw.Size,
+			BinaryInfo:   binInfo,
+			Dependencies: fw.Dependencies,
+		}
+	}
 
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
@@ -90,12 +178,15 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			UncompressedSize: totalSize,
 			AnalyzedAt:       time.Now(),
 		},
-		SizeBreakdown: sizeBreakdown,
-		FileTree:      fileTree,
-		LargestFiles:  largestFiles,
+		SizeBreakdown:  sizeBreakdown,
+		FileTree:       fileTree,
+		LargestFiles:   largestFiles,
+		Optimizations:  optimizations,
 		Metadata: map[string]interface{}{
-			"app_bundle": filepath.Base(appBundlePath),
-			"binaries":   binaries,
+			"app_bundle":       filepath.Base(appBundlePath),
+			"binaries":         binaries,
+			"frameworks":       typedFrameworks,
+			"dependency_graph": depGraph,
 		},
 	}
 
@@ -317,4 +408,17 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 	}
 
 	return binaries
+}
+
+// findMainBinary identifies the main executable binary in the file tree.
+// The main binary is typically at the root level and has no extension.
+func findMainBinary(nodes []*types.FileNode) string {
+	for _, node := range nodes {
+		if !node.IsDir && filepath.Ext(node.Name) == "" {
+			// Check if it's a Mach-O binary
+			// Typically the main binary has the same name as the app bundle
+			return node.Path
+		}
+	}
+	return ""
 }

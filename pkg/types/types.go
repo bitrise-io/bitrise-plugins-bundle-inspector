@@ -88,3 +88,13 @@ type BinaryInfo struct {
 	RPaths          []string `json:"rpaths,omitempty"`
 	HasDebugSymbols bool     `json:"has_debug_symbols"`
 }
+
+// FrameworkInfo contains metadata about an iOS framework.
+type FrameworkInfo struct {
+	Name         string      `json:"name"`
+	Path         string      `json:"path"`
+	Version      string      `json:"version,omitempty"`
+	Size         int64       `json:"size"`
+	BinaryInfo   *BinaryInfo `json:"binary_info,omitempty"`
+	Dependencies []string    `json:"dependencies,omitempty"`
+}
