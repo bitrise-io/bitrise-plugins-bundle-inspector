@@ -2,10 +2,10 @@ package macho
 
 import (
 	"debug/macho"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 )
 
 // BinaryInfo contains parsed Mach-O metadata
@@ -208,149 +208,79 @@ func hasDebugSymbols(file *macho.File) bool {
 	return false
 }
 
-// estimateSymbolTableSize estimates the size of strippable symbol data
-// This calculates the actual strippable symbol data size (excluding __LINKEDIT segment padding)
-// by determining what percentage of symbols are strippable and applying that ratio to the
-// actual symbol table size from LC_SYMTAB.
+// estimateSymbolTableSize measures the size of strippable symbol data by running
+// the strip command on a temporary copy of the binary and measuring the size difference.
 //
-// Note: __LINKEDIT segments have minimum size requirements (typically 32KB) and are
-// aligned to page boundaries. Small binaries can have 70-95% padding in __LINKEDIT.
-// This function reports only the strippable data, not the padded segment size.
+// This is the most accurate method as it matches exactly what strip will do, correctly
+// handling both executables (which can strip undefined symbols) and libraries (which
+// preserve symbols needed for dynamic linking).
 //
-// The string table uses deduplication and substring sharing, so we cannot simply sum
-// symbol name lengths. Instead, we read the actual strsize from LC_SYMTAB and apply
-// the strippable ratio.
-//
-// Formula: ((nsyms × 16) + strsize) × strippable_ratio
-//   - nsyms: total symbol count
-//   - strsize: actual string table size (with deduplication)
-//   - strippable_ratio: percentage of symbols that are debug or local
+// Returns 0 if:
+// - No symbol table exists
+// - Strip command fails or is unavailable
+// - Binary is already stripped (no savings)
 func estimateSymbolTableSize(file *macho.File, path string) int64 {
 	if file.Symtab == nil {
 		return 0
 	}
 
-	// Get the actual string table size from LC_SYMTAB
-	// We need to read this from the raw load command since debug/macho doesn't expose it
-	strsize, err := getSymtabStrsize(path)
-	if err != nil || strsize == 0 {
-		// Fallback: estimate conservatively
+	// Measure actual strip savings
+	savings, err := measureActualStripSavings(path)
+	if err != nil {
+		// Strip failed - binary likely already stripped or strip unavailable
 		return 0
 	}
 
-	// Count what percentage of symbols are strippable
-	totalSyms := int64(len(file.Symtab.Syms))
-	var strippableCount int64
-
-	for _, sym := range file.Symtab.Syms {
-		// N_STAB (0xe0) indicates debug symbol
-		// Not N_EXT (0x01) means local symbol
-		if (sym.Type&0xe0 != 0) || (sym.Type&0x01 == 0) {
-			strippableCount++
-		}
-	}
-
-	if totalSyms == 0 {
-		return 0
-	}
-
-	// Calculate total symbol table size (nlist entries + string table)
-	totalSymbolData := (totalSyms * 16) + strsize
-
-	// Apply strippable ratio
-	strippableRatio := float64(strippableCount) / float64(totalSyms)
-	strippableSize := int64(float64(totalSymbolData) * strippableRatio)
-
-	return strippableSize
+	return savings
 }
 
-// getSymtabStrsize reads the strsize field from the LC_SYMTAB load command
-// This is the actual size of the string table with deduplication applied
-func getSymtabStrsize(path string) (int64, error) {
-	file, err := os.Open(path)
+// measureActualStripSavings runs strip on a temporary copy and measures size difference
+// This is the most accurate method as it matches exactly what strip will do
+func measureActualStripSavings(binaryPath string) (int64, error) {
+	// Get original size
+	info, err := os.Stat(binaryPath)
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	originalSize := info.Size()
 
-	// Read Mach-O header
-	var magic uint32
-	if err := binary.Read(file, binary.LittleEndian, &magic); err != nil {
+	// Create temp copy
+	tmpFile, err := os.CreateTemp("", "strip_test_*.tmp")
+	if err != nil {
+		return 0, err
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	// Copy binary to temp location
+	src, err := os.Open(binaryPath)
+	if err != nil {
+		tmpFile.Close()
 		return 0, err
 	}
 
-	// Check magic number and read header
-	var ncmds uint32
+	if _, err := io.Copy(tmpFile, src); err != nil {
+		src.Close()
+		tmpFile.Close()
+		return 0, err
+	}
+	src.Close()
+	tmpFile.Close()
 
-	if magic == macho.Magic64 {
-		// 64-bit binary - read full header
-		file.Seek(0, 0)
-		var header struct {
-			Magic      uint32
-			Cputype    uint32
-			Cpusubtype uint32
-			Filetype   uint32
-			Ncmds      uint32
-			Sizeofcmds uint32
-			Flags      uint32
-			Reserved   uint32
-		}
-		if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
-			return 0, err
-		}
-		ncmds = header.Ncmds
-	} else if magic == macho.Magic32 {
-		// 32-bit binary
-		file.Seek(0, 0)
-		var header struct {
-			Magic      uint32
-			Cputype    uint32
-			Cpusubtype uint32
-			Filetype   uint32
-			Ncmds      uint32
-			Sizeofcmds uint32
-			Flags      uint32
-		}
-		if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
-			return 0, err
-		}
-		ncmds = header.Ncmds
-	} else {
-		return 0, fmt.Errorf("not a Mach-O file")
+	// Run strip (ignore warnings about code signatures)
+	cmd := exec.Command("strip", "-rSTx", tmpPath)
+	_ = cmd.Run() // Ignore errors - strip may warn but still work
+
+	// Get stripped size
+	strippedInfo, err := os.Stat(tmpPath)
+	if err != nil {
+		return 0, err
 	}
 
-	// Read load commands to find LC_SYMTAB
-	for i := uint32(0); i < ncmds; i++ {
-		var cmd, cmdsize uint32
-		pos, _ := file.Seek(0, io.SeekCurrent)
-
-		if err := binary.Read(file, binary.LittleEndian, &cmd); err != nil {
-			return 0, err
-		}
-		if err := binary.Read(file, binary.LittleEndian, &cmdsize); err != nil {
-			return 0, err
-		}
-
-		if cmd == 0x2 { // LC_SYMTAB
-			// Read the LC_SYMTAB structure
-			file.Seek(pos, 0)
-			var symtabCmd struct {
-				Cmd     uint32
-				Cmdsize uint32
-				Symoff  uint32
-				Nsyms   uint32
-				Stroff  uint32
-				Strsize uint32
-			}
-			if err := binary.Read(file, binary.LittleEndian, &symtabCmd); err != nil {
-				return 0, err
-			}
-			return int64(symtabCmd.Strsize), nil
-		}
-
-		// Skip to next load command
-		file.Seek(pos+int64(cmdsize), 0)
+	savings := originalSize - strippedInfo.Size()
+	if savings < 0 {
+		return 0, nil // Shouldn't happen, but protect against negative
 	}
 
-	return 0, fmt.Errorf("LC_SYMTAB not found")
+	return savings, nil
 }
