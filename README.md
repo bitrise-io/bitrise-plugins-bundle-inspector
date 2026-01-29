@@ -4,7 +4,7 @@ A Bitrise CLI plugin that analyzes mobile artifacts (iOS and Android) for size o
 
 ## Features
 
-### Current (MVP - Phases 1-3 Complete) ✅
+### Current (MVP - Phases 1-4 Complete) ✅
 - ✅ iOS IPA analysis with size breakdown
 - ✅ Android APK/AAB analysis
 - ✅ Recursive bundle traversal
@@ -16,11 +16,16 @@ A Bitrise CLI plugin that analyzes mobile artifacts (iOS and Android) for size o
 - ✅ Human-readable text output
 - ✅ JSON output for CI/CD integration
 
+### iOS Advanced Analysis (Phase 4 Complete) ✅
+- ✅ **Mach-O binary parsing** - Architecture detection (arm64, x86_64), binary type identification
+- ✅ **Framework dependency analysis** - Automatic framework discovery, dependency graphs, unused framework detection
+- ✅ **Assets.car parsing** - Asset extraction, type/scale categorization, optimization suggestions
+- ✅ **LZFSE compression support** - Automatic decompression of modern iOS IPAs (compression method 99)
+
 ### Coming Soon
-- 🚧 iOS advanced features (Mach-O parsing, LZFSE, Assets.car) (Phase 4)
 - 🚧 HTML interactive reports (Phase 5)
 - 🚧 Artifact comparison (Phase 5)
-- 🚧 Full Android manifest parsing (Phase 4)
+- 🚧 Full Android manifest parsing
 
 ## Supported Artifact Types
 
@@ -145,6 +150,91 @@ Optimization Opportunities:
 Total Potential Savings: 1.2 MB (2.3%)
 ```
 
+### iOS Advanced Analysis Output
+
+With Phase 4 features enabled, iOS analysis includes deep binary inspection:
+
+```json
+{
+  "metadata": {
+    "binaries": {
+      "Wikipedia": {
+        "architecture": "arm64",
+        "type": "executable",
+        "code_size": 16384,
+        "data_size": 16384,
+        "linked_libraries": [
+          "@rpath/Wikipedia.debug.dylib",
+          "/usr/lib/libSystem.B.dylib"
+        ],
+        "rpaths": [
+          "@executable_path",
+          "@executable_path/Frameworks"
+        ],
+        "has_debug_symbols": false
+      },
+      "Frameworks/WMF.framework/WMF": {
+        "architecture": "arm64",
+        "type": "dylib",
+        "code_size": 10108928,
+        "data_size": 622592,
+        "linked_libraries": [
+          "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "/usr/lib/libSystem.B.dylib"
+        ]
+      }
+    },
+    "frameworks": [
+      {
+        "name": "WMF.framework",
+        "path": "Frameworks/WMF.framework",
+        "version": "7.8.1",
+        "size": 34233571,
+        "binary_info": {
+          "architecture": "arm64",
+          "type": "dylib"
+        },
+        "dependencies": [
+          "/System/Library/Frameworks/Foundation.framework/Foundation"
+        ]
+      }
+    ],
+    "asset_catalogs": [
+      {
+        "path": "Assets.car",
+        "total_size": 2955368,
+        "asset_count": 331,
+        "by_type": {
+          "png": 89280,
+          "data": 8928,
+          "unknown": 2856960
+        },
+        "largest_assets": [
+          {
+            "name": "AppIcon",
+            "type": "png",
+            "size": 8928
+          }
+        ]
+      }
+    ],
+    "dependency_graph": {
+      "Wikipedia": ["@rpath/Wikipedia.debug.dylib"],
+      "Wikipedia.debug.dylib": ["Frameworks/WMF.framework/WMF"],
+      "Frameworks/WMF.framework/WMF": []
+    }
+  }
+}
+```
+
+**Key Features:**
+- **Binary Analysis**: Automatically detects Mach-O binaries and extracts architecture, type, code/data sizes
+- **Framework Discovery**: Finds all frameworks, parses Info.plist for versions, analyzes dependencies
+- **Dependency Graph**: Maps framework dependencies with @rpath resolution
+- **Unused Framework Detection**: Identifies frameworks not linked by the main binary (optimization opportunity)
+- **Assets.car Parsing**: Extracts asset metadata, categorizes by type (@1x, @2x, @3x) and format (png, pdf)
+- **LZFSE Support**: Transparently handles modern iOS IPAs with LZFSE compression (method 99)
+
 ## Development
 
 ### Project Structure
@@ -222,11 +312,11 @@ The project includes real mobile applications for integration testing:
 - [x] Optimization recommendations with severity levels
 - [x] JSON output formatter
 
-### Phase 4: iOS Advanced Features
-- [ ] Mach-O binary parsing
-- [ ] LZFSE compression support
-- [ ] Assets.car parsing
-- [ ] Framework dependency analysis
+### Phase 4: iOS Advanced Features ✅ COMPLETE
+- [x] Mach-O binary parsing (architecture detection, linked libraries, debug symbols)
+- [x] LZFSE compression support (automatic decompression of method 99)
+- [x] Assets.car parsing (asset extraction, type/scale categorization)
+- [x] Framework dependency analysis (discovery, dependency graphs, unused detection)
 
 ### Phase 5: Comparison & HTML
 - [ ] compare command
