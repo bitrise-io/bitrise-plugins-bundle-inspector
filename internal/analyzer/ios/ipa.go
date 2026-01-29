@@ -87,14 +87,15 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	machoBinaries := make(map[string]*macho.BinaryInfo)
 	for path, binInfo := range binaries {
 		machoBinaries[path] = &macho.BinaryInfo{
-			Architecture:    binInfo.Architecture,
-			Architectures:   binInfo.Architectures,
-			Type:            binInfo.Type,
-			CodeSize:        binInfo.CodeSize,
-			DataSize:        binInfo.DataSize,
-			LinkedLibraries: binInfo.LinkedLibraries,
-			RPaths:          binInfo.RPaths,
-			HasDebugSymbols: binInfo.HasDebugSymbols,
+			Architecture:     binInfo.Architecture,
+			Architectures:    binInfo.Architectures,
+			Type:             binInfo.Type,
+			CodeSize:         binInfo.CodeSize,
+			DataSize:         binInfo.DataSize,
+			LinkedLibraries:  binInfo.LinkedLibraries,
+			RPaths:           binInfo.RPaths,
+			HasDebugSymbols:  binInfo.HasDebugSymbols,
+			DebugSymbolsSize: binInfo.DebugSymbolsSize,
 		}
 	}
 
@@ -121,6 +122,12 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 
 	// Prepare optimizations list
 	var optimizations []types.Optimization
+
+	// Generate symbol stripping optimizations
+	symbolOpts := generateStripSymbolsOptimizations(binaries)
+	for _, opt := range symbolOpts {
+		optimizations = append(optimizations, *opt)
+	}
 
 	// Add unused framework optimizations
 	for _, fwPath := range unusedFrameworks {
@@ -171,14 +178,15 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		var binInfo *types.BinaryInfo
 		if fw.BinaryInfo != nil {
 			binInfo = &types.BinaryInfo{
-				Architecture:    fw.BinaryInfo.Architecture,
-				Architectures:   fw.BinaryInfo.Architectures,
-				Type:            fw.BinaryInfo.Type,
-				CodeSize:        fw.BinaryInfo.CodeSize,
-				DataSize:        fw.BinaryInfo.DataSize,
-				LinkedLibraries: fw.BinaryInfo.LinkedLibraries,
-				RPaths:          fw.BinaryInfo.RPaths,
-				HasDebugSymbols: fw.BinaryInfo.HasDebugSymbols,
+				Architecture:     fw.BinaryInfo.Architecture,
+				Architectures:    fw.BinaryInfo.Architectures,
+				Type:             fw.BinaryInfo.Type,
+				CodeSize:         fw.BinaryInfo.CodeSize,
+				DataSize:         fw.BinaryInfo.DataSize,
+				LinkedLibraries:  fw.BinaryInfo.LinkedLibraries,
+				RPaths:           fw.BinaryInfo.RPaths,
+				HasDebugSymbols:  fw.BinaryInfo.HasDebugSymbols,
+				DebugSymbolsSize: fw.BinaryInfo.DebugSymbolsSize,
 			}
 		}
 		typedFrameworks[i] = &types.FrameworkInfo{
@@ -467,14 +475,15 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 			if info, err := macho.ParseMachO(fullPath); err == nil {
 				// Convert internal BinaryInfo to types.BinaryInfo
 				binaries[node.Path] = &types.BinaryInfo{
-					Architecture:    info.Architecture,
-					Architectures:   info.Architectures,
-					Type:            info.Type,
-					CodeSize:        info.CodeSize,
-					DataSize:        info.DataSize,
-					LinkedLibraries: info.LinkedLibraries,
-					RPaths:          info.RPaths,
-					HasDebugSymbols: info.HasDebugSymbols,
+					Architecture:     info.Architecture,
+					Architectures:    info.Architectures,
+					Type:             info.Type,
+					CodeSize:         info.CodeSize,
+					DataSize:         info.DataSize,
+					LinkedLibraries:  info.LinkedLibraries,
+					RPaths:           info.RPaths,
+					HasDebugSymbols:  info.HasDebugSymbols,
+					DebugSymbolsSize: info.DebugSymbolsSize,
 				}
 			} else {
 				// Graceful degradation: log warning, continue
@@ -531,4 +540,31 @@ func parseAssetCatalogs(nodes []*types.FileNode, rootPath string) []*assets.Asse
 	}
 
 	return catalogs
+}
+
+// generateStripSymbolsOptimizations creates optimization recommendations for binaries with debug symbols.
+func generateStripSymbolsOptimizations(binaries map[string]*types.BinaryInfo) []*types.Optimization {
+	var optimizations []*types.Optimization
+
+	for path, binary := range binaries {
+		if binary.HasDebugSymbols && binary.DebugSymbolsSize > 0 {
+			opt := &types.Optimization{
+				Category:    "strip-symbols",
+				Severity:    "high",
+				Title:       fmt.Sprintf("Strip debug symbols from %s", filepath.Base(path)),
+				Description: fmt.Sprintf("Binary contains debug symbols that can be removed. Symbol table size: %s", util.FormatBytes(binary.DebugSymbolsSize)),
+				Impact:      binary.DebugSymbolsSize,
+				Files:       []string{path},
+				Action:      "Run 'strip -x' on this binary to remove debug symbols",
+			}
+			optimizations = append(optimizations, opt)
+		}
+	}
+
+	// Sort by impact (largest first)
+	sort.Slice(optimizations, func(i, j int) bool {
+		return optimizations[i].Impact > optimizations[j].Impact
+	})
+
+	return optimizations
 }

@@ -16,7 +16,12 @@
       "Bash(dwarfdump:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(find Payload -name \"*.strings\" -type f -exec sh -c 'h=$\\(md5 -q \"\"$1\"\"\\); s=$\\(stat -f%z \"\"$1\"\"\\); echo \"\"$h $s $1\"\"' _ {} ;)",
+      "Bash(xargs -I {} sh -c 'echo \"\"$\\(stat -f%z \"\"{}\"\"\\) $\\(md5 -q \"\"{}\"\"\\)\"\" \"\"{}\"\"')",
+      "Bash(sort:*)",
+      "Bash(xargs stat:*)",
+      "Bash(find:*)"
     ]
   }
 }

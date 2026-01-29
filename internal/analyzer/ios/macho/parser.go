@@ -7,14 +7,15 @@ import (
 
 // BinaryInfo contains parsed Mach-O metadata
 type BinaryInfo struct {
-	Architecture    string   `json:"architecture"`
-	Architectures   []string `json:"architectures"`
-	Type            string   `json:"type"`
-	CodeSize        int64    `json:"code_size"`
-	DataSize        int64    `json:"data_size"`
-	LinkedLibraries []string `json:"linked_libraries"`
-	RPaths          []string `json:"rpaths,omitempty"`
-	HasDebugSymbols bool     `json:"has_debug_symbols"`
+	Architecture     string   `json:"architecture"`
+	Architectures    []string `json:"architectures"`
+	Type             string   `json:"type"`
+	CodeSize         int64    `json:"code_size"`
+	DataSize         int64    `json:"data_size"`
+	LinkedLibraries  []string `json:"linked_libraries"`
+	RPaths           []string `json:"rpaths,omitempty"`
+	HasDebugSymbols  bool     `json:"has_debug_symbols"`
+	DebugSymbolsSize int64    `json:"debug_symbols_size,omitempty"`
 }
 
 // ParseMachO parses a Mach-O binary and extracts metadata
@@ -50,6 +51,11 @@ func ParseMachO(path string) (*BinaryInfo, error) {
 
 	// Check for debug symbols
 	info.HasDebugSymbols = hasDebugSymbols(file)
+
+	// Estimate debug symbol size if present
+	if info.HasDebugSymbols {
+		info.DebugSymbolsSize = estimateSymbolTableSize(file)
+	}
 
 	return info, nil
 }
@@ -150,36 +156,77 @@ func getSegmentSizes(file *macho.File) (codeSize, dataSize int64) {
 }
 
 func hasDebugSymbols(file *macho.File) bool {
-	// Try to get DWARF data - this is the most reliable way
+	// Level 1: Check for DWARF debug information
 	_, err := file.DWARF()
 	if err == nil {
 		return true
 	}
 
-	// Fallback: Check for DWARF debug sections manually
-	debugSections := []string{
-		"__debug_info",
-		"__debug_line",
-		"__debug_abbrev",
-		"__debug_str",
-	}
-
-	if file.Sections == nil {
-		return false
-	}
-
-	for _, section := range file.Sections {
-		// Check if in __DWARF segment
-		if section.Seg == "__DWARF" {
-			return true
+	// Level 2: Check for DWARF segments manually
+	if file.Sections != nil {
+		debugSections := []string{
+			"__debug_info",
+			"__debug_line",
+			"__debug_abbrev",
+			"__debug_str",
 		}
-		// Check for debug section names
-		for _, debugSection := range debugSections {
-			if section.Name == debugSection {
+
+		for _, section := range file.Sections {
+			// Check if in __DWARF segment
+			if section.Seg == "__DWARF" {
+				return true
+			}
+			// Check for debug section names
+			for _, debugSection := range debugSections {
+				if section.Name == debugSection {
+					return true
+				}
+			}
+		}
+	}
+
+	// Level 3: Check for symbol table entries
+	// Symbol tables in __LINKEDIT segment contain debug/local symbols that can be stripped
+	if file.Symtab != nil {
+		for _, sym := range file.Symtab.Syms {
+			// Check symbol type flags
+			// N_STAB (0xe0) indicates debug symbol
+			if sym.Type&0xe0 != 0 {
+				return true
+			}
+			// Local symbols (not external) are also strippable
+			// N_EXT (0x01) = external symbol (exported)
+			if sym.Type&0x01 == 0 {
 				return true
 			}
 		}
 	}
 
 	return false
+}
+
+// estimateSymbolTableSize estimates the size of strippable symbol data
+func estimateSymbolTableSize(file *macho.File) int64 {
+	if file.Symtab == nil {
+		return 0
+	}
+
+	var debugSymbolCount int
+	var localSymbolCount int
+
+	for _, sym := range file.Symtab.Syms {
+		// N_STAB (0xe0) indicates debug symbol
+		if sym.Type&0xe0 != 0 {
+			debugSymbolCount++
+		} else if sym.Type&0x01 == 0 { // Not external (N_EXT)
+			localSymbolCount++
+		}
+	}
+
+	// Rough estimate: each symbol entry is ~16 bytes + average name length
+	// Plus string table overhead
+	// This is a conservative estimate - actual savings may vary
+	symbolSize := int64((debugSymbolCount + localSymbolCount) * 24)
+
+	return symbolSize
 }

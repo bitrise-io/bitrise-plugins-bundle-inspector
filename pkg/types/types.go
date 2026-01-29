@@ -79,14 +79,15 @@ type Report struct {
 
 // BinaryInfo contains parsed Mach-O metadata (iOS binaries).
 type BinaryInfo struct {
-	Architecture    string   `json:"architecture"`
-	Architectures   []string `json:"architectures"`
-	Type            string   `json:"type"`
-	CodeSize        int64    `json:"code_size"`
-	DataSize        int64    `json:"data_size"`
-	LinkedLibraries []string `json:"linked_libraries"`
-	RPaths          []string `json:"rpaths,omitempty"`
-	HasDebugSymbols bool     `json:"has_debug_symbols"`
+	Architecture     string   `json:"architecture"`
+	Architectures    []string `json:"architectures"`
+	Type             string   `json:"type"`
+	CodeSize         int64    `json:"code_size"`
+	DataSize         int64    `json:"data_size"`
+	LinkedLibraries  []string `json:"linked_libraries"`
+	RPaths           []string `json:"rpaths,omitempty"`
+	HasDebugSymbols  bool     `json:"has_debug_symbols"`
+	DebugSymbolsSize int64    `json:"debug_symbols_size,omitempty"`
 }
 
 // FrameworkInfo contains metadata about an iOS framework.
