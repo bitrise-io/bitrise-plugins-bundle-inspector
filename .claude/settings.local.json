@@ -6,7 +6,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(go build:*)",
       "Bash(go test:*)",
-      "Bash(./bundle-inspector analyze:*)"
+      "Bash(./bundle-inspector analyze:*)",
+      "Bash(./scripts/run-integration-tests.sh:*)",
+      "Bash(./scripts/analyze-all-test-artifacts.sh:*)"
     ]
   }
 }

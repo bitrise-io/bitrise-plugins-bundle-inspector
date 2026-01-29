@@ -34,13 +34,17 @@ build/
 .DS_Store
 Thumbs.db
 
-# Test artifacts
-test-artifacts/
-*.ipa
-*.apk
-*.aab
-*.xcarchive
-*.app
+# Test artifacts (large binaries)
+test-artifacts/*.ipa
+test-artifacts/*.apk
+test-artifacts/*.aab
+test-artifacts/*.app
+test-artifacts/ios/*.ipa
+test-artifacts/ios/*.app
+test-artifacts/android/*.apk
+test-artifacts/android/*.aab
+test-artifacts/**/*.json
+!test-artifacts/README.md
 
 # Reports
 *.html

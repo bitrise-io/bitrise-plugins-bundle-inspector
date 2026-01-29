@@ -176,16 +176,28 @@ go test ./...
 go test -cover ./...
 ```
 
-### Testing with Sample Artifacts
+### Testing with Real Artifacts
+
+The project includes real mobile applications for integration testing:
 
 ```bash
-# Analyze a test IPA
-./bundle-inspector analyze test-artifacts/sample.ipa
+# Analyze real iOS IPA (81MB)
+./bundle-inspector analyze test-artifacts/ios/lightyear.ipa
 
-# Test error handling
-./bundle-inspector analyze non-existent.ipa
-./bundle-inspector analyze invalid.zip
+# Analyze real iOS .app bundle
+./bundle-inspector analyze test-artifacts/ios/Wikipedia.app
+
+# Analyze real Android APK (11MB)
+./bundle-inspector analyze test-artifacts/android/2048-game-2048.apk
+
+# Run all analyses with reports
+./scripts/analyze-all-test-artifacts.sh
+
+# Run integration tests
+./scripts/run-integration-tests.sh
 ```
+
+**Note:** Test artifacts are large binaries excluded from git. They're stored locally in `test-artifacts/`.
 
 ## Implementation Roadmap
 

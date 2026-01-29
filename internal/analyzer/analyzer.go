@@ -56,7 +56,7 @@ func NewAnalyzer(path string) (Analyzer, error) {
 	case types.ArtifactTypeAAB:
 		return android.NewAABAnalyzer(), nil
 	case types.ArtifactTypeApp:
-		return nil, fmt.Errorf("App bundle analysis not yet implemented")
+		return ios.NewAppAnalyzer(), nil
 	case types.ArtifactTypeXCArchive:
 		return nil, fmt.Errorf("XCArchive analysis not yet implemented")
 	default:
