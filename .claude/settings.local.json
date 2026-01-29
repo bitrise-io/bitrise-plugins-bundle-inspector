@@ -21,7 +21,8 @@
       "Bash(xargs -I {} sh -c 'echo \"\"$\\(stat -f%z \"\"{}\"\"\\) $\\(md5 -q \"\"{}\"\"\\)\"\" \"\"{}\"\"')",
       "Bash(sort:*)",
       "Bash(xargs stat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(size -m:*)"
     ]
   }
 }

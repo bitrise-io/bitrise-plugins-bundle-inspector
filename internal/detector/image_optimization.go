@@ -30,7 +30,7 @@ func DetectImageOptimizations(rootPath string) ([]ImageOptimization, error) {
 		ext := strings.ToLower(filepath.Ext(path))
 
 		// Check PNG optimization opportunity
-		if ext == ".png" && info.Size() > 10*1024 { // > 10 KB
+		if ext == ".png" && info.Size() > 5*1024 { // > 5 KB
 			// Estimate 20-30% savings from PNG optimization
 			savings := int64(float64(info.Size()) * 0.25)
 

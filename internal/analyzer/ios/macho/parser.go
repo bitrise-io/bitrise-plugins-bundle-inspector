@@ -2,7 +2,10 @@ package macho
 
 import (
 	"debug/macho"
+	"encoding/binary"
 	"fmt"
+	"io"
+	"os"
 )
 
 // BinaryInfo contains parsed Mach-O metadata
@@ -54,7 +57,7 @@ func ParseMachO(path string) (*BinaryInfo, error) {
 
 	// Estimate debug symbol size if present
 	if info.HasDebugSymbols {
-		info.DebugSymbolsSize = estimateSymbolTableSize(file)
+		info.DebugSymbolsSize = estimateSymbolTableSize(file, path)
 	}
 
 	return info, nil
@@ -206,44 +209,148 @@ func hasDebugSymbols(file *macho.File) bool {
 }
 
 // estimateSymbolTableSize estimates the size of strippable symbol data
-func estimateSymbolTableSize(file *macho.File) int64 {
+// This calculates the actual strippable symbol data size (excluding __LINKEDIT segment padding)
+// by determining what percentage of symbols are strippable and applying that ratio to the
+// actual symbol table size from LC_SYMTAB.
+//
+// Note: __LINKEDIT segments have minimum size requirements (typically 32KB) and are
+// aligned to page boundaries. Small binaries can have 70-95% padding in __LINKEDIT.
+// This function reports only the strippable data, not the padded segment size.
+//
+// The string table uses deduplication and substring sharing, so we cannot simply sum
+// symbol name lengths. Instead, we read the actual strsize from LC_SYMTAB and apply
+// the strippable ratio.
+//
+// Formula: ((nsyms × 16) + strsize) × strippable_ratio
+//   - nsyms: total symbol count
+//   - strsize: actual string table size (with deduplication)
+//   - strippable_ratio: percentage of symbols that are debug or local
+func estimateSymbolTableSize(file *macho.File, path string) int64 {
 	if file.Symtab == nil {
 		return 0
 	}
 
-	var totalSize int64
+	// Get the actual string table size from LC_SYMTAB
+	// We need to read this from the raw load command since debug/macho doesn't expose it
+	strsize, err := getSymtabStrsize(path)
+	if err != nil || strsize == 0 {
+		// Fallback: estimate conservatively
+		return 0
+	}
 
-	// Calculate size for each strippable symbol
-	// Each symbol consists of:
-	// - nlist_64 entry: 16 bytes (on 64-bit architectures)
-	// - string table entry: symbol name + null terminator
+	// Count what percentage of symbols are strippable
+	totalSyms := int64(len(file.Symtab.Syms))
+	var strippableCount int64
+
 	for _, sym := range file.Symtab.Syms {
-		isStrippable := false
-
 		// N_STAB (0xe0) indicates debug symbol
-		if sym.Type&0xe0 != 0 {
-			isStrippable = true
-		} else if sym.Type&0x01 == 0 { // Not external (N_EXT) - local symbol
-			isStrippable = true
-		}
-
-		if isStrippable {
-			// nlist_64 entry size (16 bytes for 64-bit)
-			totalSize += 16
-
-			// String table entry: symbol name length + null terminator
-			nameSize := int64(len(sym.Name))
-			if nameSize > 0 {
-				totalSize += nameSize + 1 // +1 for null terminator
-			}
+		// Not N_EXT (0x01) means local symbol
+		if (sym.Type&0xe0 != 0) || (sym.Type&0x01 == 0) {
+			strippableCount++
 		}
 	}
 
-	// Apply correction factor: not all string table space is freed
-	// String tables often have deduplication and shared strings
-	// Empirically, actual savings are about 75-80% of calculated size
-	// This matches real-world strip -x behavior
-	totalSize = (totalSize * 3) / 4 // 75% factor
+	if totalSyms == 0 {
+		return 0
+	}
 
-	return totalSize
+	// Calculate total symbol table size (nlist entries + string table)
+	totalSymbolData := (totalSyms * 16) + strsize
+
+	// Apply strippable ratio
+	strippableRatio := float64(strippableCount) / float64(totalSyms)
+	strippableSize := int64(float64(totalSymbolData) * strippableRatio)
+
+	return strippableSize
+}
+
+// getSymtabStrsize reads the strsize field from the LC_SYMTAB load command
+// This is the actual size of the string table with deduplication applied
+func getSymtabStrsize(path string) (int64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	// Read Mach-O header
+	var magic uint32
+	if err := binary.Read(file, binary.LittleEndian, &magic); err != nil {
+		return 0, err
+	}
+
+	// Check magic number and read header
+	var ncmds uint32
+
+	if magic == macho.Magic64 {
+		// 64-bit binary - read full header
+		file.Seek(0, 0)
+		var header struct {
+			Magic      uint32
+			Cputype    uint32
+			Cpusubtype uint32
+			Filetype   uint32
+			Ncmds      uint32
+			Sizeofcmds uint32
+			Flags      uint32
+			Reserved   uint32
+		}
+		if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
+			return 0, err
+		}
+		ncmds = header.Ncmds
+	} else if magic == macho.Magic32 {
+		// 32-bit binary
+		file.Seek(0, 0)
+		var header struct {
+			Magic      uint32
+			Cputype    uint32
+			Cpusubtype uint32
+			Filetype   uint32
+			Ncmds      uint32
+			Sizeofcmds uint32
+			Flags      uint32
+		}
+		if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
+			return 0, err
+		}
+		ncmds = header.Ncmds
+	} else {
+		return 0, fmt.Errorf("not a Mach-O file")
+	}
+
+	// Read load commands to find LC_SYMTAB
+	for i := uint32(0); i < ncmds; i++ {
+		var cmd, cmdsize uint32
+		pos, _ := file.Seek(0, io.SeekCurrent)
+
+		if err := binary.Read(file, binary.LittleEndian, &cmd); err != nil {
+			return 0, err
+		}
+		if err := binary.Read(file, binary.LittleEndian, &cmdsize); err != nil {
+			return 0, err
+		}
+
+		if cmd == 0x2 { // LC_SYMTAB
+			// Read the LC_SYMTAB structure
+			file.Seek(pos, 0)
+			var symtabCmd struct {
+				Cmd     uint32
+				Cmdsize uint32
+				Symoff  uint32
+				Nsyms   uint32
+				Stroff  uint32
+				Strsize uint32
+			}
+			if err := binary.Read(file, binary.LittleEndian, &symtabCmd); err != nil {
+				return 0, err
+			}
+			return int64(symtabCmd.Strsize), nil
+		}
+
+		// Skip to next load command
+		file.Seek(pos+int64(cmdsize), 0)
+	}
+
+	return 0, fmt.Errorf("LC_SYMTAB not found")
 }
