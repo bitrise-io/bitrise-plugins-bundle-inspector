@@ -411,6 +411,37 @@ func findLargestFiles(nodes []*types.FileNode, n int) []types.FileNode {
 	return files
 }
 
+// isStickerExtensionBinary checks if a file path points to a stickers extension binary.
+// Stickers extensions are primarily data containers (images/GIFs in .stickerpack)
+// and don't have meaningful binary dependencies to analyze.
+func isStickerExtensionBinary(filePath, rootPath string) bool {
+	// Check if this is inside a .appex bundle
+	if !strings.Contains(filePath, ".appex/") {
+		return false
+	}
+
+	// Get the .appex directory path
+	parts := strings.Split(filePath, ".appex/")
+	if len(parts) < 2 {
+		return false
+	}
+	appexDir := filepath.Join(rootPath, parts[0]+".appex")
+
+	// Check if the .appex contains a .stickerpack subdirectory
+	entries, err := os.ReadDir(appexDir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), ".stickerpack") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // analyzeMachOBinaries scans the file tree for Mach-O binaries and parses them.
 func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*types.BinaryInfo {
 	binaries := make(map[string]*types.BinaryInfo)
@@ -428,6 +459,11 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 
 		// Detect Mach-O binaries by magic bytes
 		if macho.IsMachO(fullPath) {
+			// Skip stickers extension binaries - they're data containers, not functional binaries
+			if isStickerExtensionBinary(node.Path, rootPath) {
+				return
+			}
+
 			if info, err := macho.ParseMachO(fullPath); err == nil {
 				// Convert internal BinaryInfo to types.BinaryInfo
 				binaries[node.Path] = &types.BinaryInfo{

@@ -15,7 +15,8 @@
       "Bash(go doc:*)",
       "Bash(dwarfdump:*)",
       "Bash(grep:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(tee:*)"
     ]
   }
 }

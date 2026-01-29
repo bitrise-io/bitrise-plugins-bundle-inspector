@@ -284,13 +284,16 @@ Verified human-readable output includes:
 ## Issues Identified
 
 ### Minor Issues (Non-Blocking)
-1. **JPEG handling warning**: "TODO: handle JPEG" messages during Assets.car parsing
-   - Impact: Cosmetic only, doesn't affect functionality
-   - Status: Low priority, can be addressed in future iteration
+1. **~~Stickers extension warning~~** ✅ FIXED
+   - Issue: "Failed to parse Mach-O" warning for Wikipedia Stickers.appex
+   - Status: Fixed by skipping stickers extensions during binary analysis
+   - Impact: Cleaner log output
 
-2. **Stickers app extension parsing**: Warning about invalid magic number
-   - Impact: None, gracefully skipped
-   - Status: Expected behavior, stickers may have different format
+2. **JPEG handling messages** (Cosmetic - No Fix Needed)
+   - Source: External library `github.com/iineva/bom` during Assets.car parsing
+   - Impact: Cosmetic only, doesn't affect functionality
+   - Status: JPEG detection and categorization works correctly
+   - Note: Upstream library issue, no action needed in bundle-inspector
 
 ### No Critical Issues Found ✅
 
