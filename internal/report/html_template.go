@@ -206,7 +206,7 @@ const htmlTemplate = `<!DOCTYPE html>
             height: 280px;
         }
 
-        .optimizations-section {
+        .insights-section {
             background: var(--bg-secondary);
             border-radius: 12px;
             padding: 30px;
@@ -214,115 +214,180 @@ const htmlTemplate = `<!DOCTYPE html>
             transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .optimizations-section h2 {
+        .insights-section h2 {
             font-size: 24px;
             font-weight: 600;
             margin-bottom: 20px;
             color: var(--text-primary);
         }
 
-        .optimization-item {
+        .insight-card {
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
+            border-radius: 12px;
+            padding: 0;
+            margin-bottom: 20px;
             background: var(--bg-primary);
-            transition: border-color 0.3s ease, background-color 0.3s ease;
+            transition: all 0.3s ease;
+            overflow: hidden;
         }
 
-        .optimization-item:last-child {
+        .insight-card:last-child {
             margin-bottom: 0;
         }
 
-        .opt-header {
+        .insight-card:hover {
+            box-shadow: 0 4px 12px var(--shadow-hover);
+            transform: translateY(-2px);
+        }
+
+        .insight-header {
+            padding: 20px;
             display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .badge.high {
-            background: #ff3b30;
-            color: white;
-        }
-
-        .badge.medium {
-            background: #ff9500;
-            color: white;
-        }
-
-        .badge.low {
-            background: #ffcc00;
-            color: #1d1d1f;
-        }
-
-        .opt-header h3 {
-            flex: 1;
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .impact {
-            font-size: 14px;
-            font-weight: 600;
-            color: #34c759;
-        }
-
-        .description {
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-
-        details {
-            margin-top: 10px;
-        }
-
-        summary {
+            align-items: flex-start;
+            gap: 15px;
             cursor: pointer;
-            color: #007aff;
-            font-weight: 500;
             user-select: none;
         }
 
-        summary:hover {
+        .insight-icon {
+            font-size: 32px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .insight-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .insight-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .insight-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .insight-meta {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .insight-savings {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .savings-amount {
+            font-size: 16px;
+            font-weight: 700;
+            color: #34c759;
+        }
+
+        .savings-percentage {
+            font-size: 14px;
+            font-weight: 600;
+            color: #34c759;
+            background: rgba(52, 199, 89, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .insight-count {
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+        }
+
+        .learn-more-link {
+            font-size: 13px;
+            color: #007aff;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .learn-more-link:hover {
             text-decoration: underline;
+        }
+
+        .expand-indicator {
+            font-size: 20px;
+            color: var(--text-secondary);
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .insight-card.expanded .expand-indicator {
+            transform: rotate(180deg);
+        }
+
+        .insight-files {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .insight-card.expanded .insight-files {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .insight-files-content {
+            padding: 20px;
+        }
+
+        .insight-files-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
         }
 
         .files-list {
             list-style: none;
-            margin-top: 10px;
-            max-height: 200px;
-            overflow-y: auto;
+            margin: 0;
+            padding: 0;
         }
 
         .files-list li {
-            padding: 4px 0;
+            padding: 8px 12px;
             color: var(--text-secondary);
             font-family: 'Monaco', 'Courier New', monospace;
             font-size: 12px;
-        }
-
-        .action {
-            margin-top: 10px;
-            padding: 10px;
-            background: var(--bg-primary);
+            background: var(--bg-secondary);
             border-radius: 6px;
-            font-size: 14px;
-            color: var(--text-primary);
-            transition: background-color 0.3s ease;
+            margin-bottom: 6px;
+            transition: background-color 0.2s ease;
         }
 
-        .action strong {
-            color: #007aff;
+        .files-list li:hover {
+            background: var(--border-color);
+        }
+
+        .files-list li:last-child {
+            margin-bottom: 0;
+        }
+
+        .no-insights {
+            text-align: center;
+            padding: 40px;
+            color: #34c759;
+            font-size: 18px;
         }
 
         .search-container {
@@ -500,9 +565,9 @@ const htmlTemplate = `<!DOCTYPE html>
             </div>
         </div>
 
-        <div class="optimizations-section" id="optimizations-section">
-            <h2>Optimization Opportunities</h2>
-            <div id="optimizations-list"></div>
+        <div class="insights-section" id="insights-section">
+            <h2>💡 Insights & Optimization Opportunities</h2>
+            <div id="insights-list"></div>
         </div>
 
         <footer>
@@ -900,41 +965,143 @@ const htmlTemplate = `<!DOCTYPE html>
             return chart;
         }
 
-        // Render optimizations
-        function renderOptimizations(optimizations) {
-            const container = document.getElementById('optimizations-list');
+        // Category metadata with icons and learn more links
+        const categoryMetadata = {
+            'strip-symbols': {
+                icon: '🔧',
+                title: 'Strip Binary Symbols',
+                learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/strip-debug-symbols.html'
+            },
+            'frameworks': {
+                icon: '📦',
+                title: 'Unused Frameworks',
+                learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
+            },
+            'duplicates': {
+                icon: '🔄',
+                title: 'Duplicate Files',
+                learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
+            },
+            'image-optimization': {
+                icon: '🖼️',
+                title: 'Image Optimization',
+                learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
+            },
+            'loose-images': {
+                icon: '📸',
+                title: 'Loose Images',
+                learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
+            },
+            'unnecessary-files': {
+                icon: '🗑️',
+                title: 'Unnecessary Files',
+                learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
+            }
+        };
+
+        // Group optimizations by category
+        function groupByCategory(optimizations) {
+            const groups = {};
+
+            optimizations.forEach(opt => {
+                if (!groups[opt.category]) {
+                    groups[opt.category] = {
+                        items: [],
+                        totalSavings: 0,
+                        totalFiles: 0,
+                        description: ''
+                    };
+                }
+
+                groups[opt.category].items.push(opt);
+                groups[opt.category].totalSavings += opt.impact;
+                groups[opt.category].totalFiles += (opt.files ? opt.files.length : 0);
+
+                // Use the first item's description as category description
+                if (!groups[opt.category].description && opt.description) {
+                    groups[opt.category].description = opt.description;
+                }
+            });
+
+            return groups;
+        }
+
+        // Render insights section
+        function renderInsights(optimizations) {
+            const container = document.getElementById('insights-list');
 
             if (!optimizations || optimizations.length === 0) {
-                container.innerHTML = '<p style="color: #34c759; font-size: 18px;">✅ No optimization opportunities found!</p>';
+                container.innerHTML = '<div class="no-insights">✅ No optimization opportunities found! Your bundle is well optimized.</div>';
                 return;
             }
 
+            const groups = groupByCategory(optimizations);
+
+            // Calculate total bundle size for percentage
+            const totalSize = reportData.fileTree ? reportData.fileTree.value : 0;
+
             let html = '';
-            optimizations.forEach(opt => {
-                html += '<div class="optimization-item">';
-                html += '<div class="opt-header">';
-                html += '<span class="badge ' + opt.severity + '">' + opt.severity + '</span>';
-                html += '<h3>' + opt.title + '</h3>';
-                html += '<span class="impact">' + formatBytes(opt.impact) + '</span>';
-                html += '</div>';
-                html += '<p class="description">' + opt.description + '</p>';
 
-                if (opt.files && opt.files.length > 0) {
-                    html += '<details>';
-                    html += '<summary>Affected Files (' + opt.files.length + ')</summary>';
-                    html += '<ul class="files-list">';
-                    opt.files.forEach(file => {
-                        html += '<li>' + file + '</li>';
-                    });
-                    html += '</ul>';
-                    html += '</details>';
-                }
+            // Render each category
+            Object.keys(groups).forEach((category, index) => {
+                const group = groups[category];
+                const metadata = categoryMetadata[category] || {
+                    icon: '💡',
+                    title: category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    learnMore: 'https://devcenter.bitrise.io'
+                };
 
-                html += '<div class="action"><strong>Action:</strong> ' + opt.action + '</div>';
+                const savingsPercentage = totalSize > 0
+                    ? ((group.totalSavings / totalSize) * 100).toFixed(2)
+                    : '0.00';
+
+                html += '<div class="insight-card" id="insight-' + index + '">';
+                html += '  <div class="insight-header" onclick="toggleInsight(' + index + ')">';
+                html += '    <div class="insight-icon">' + metadata.icon + '</div>';
+                html += '    <div class="insight-content">';
+                html += '      <div class="insight-title">' + metadata.title + '</div>';
+                html += '      <div class="insight-description">' + group.description + '</div>';
+                html += '      <div class="insight-meta">';
+                html += '        <div class="insight-savings">';
+                html += '          <span class="savings-amount">' + formatBytes(group.totalSavings) + '</span>';
+                html += '          <span class="savings-percentage">' + savingsPercentage + '% of total</span>';
+                html += '        </div>';
+                html += '        <span class="insight-count">' + group.totalFiles + ' files</span>';
+                html += '        <a href="' + metadata.learnMore + '" class="learn-more-link" target="_blank" onclick="event.stopPropagation()">Learn more →</a>';
+                html += '      </div>';
+                html += '    </div>';
+                html += '    <div class="expand-indicator">▼</div>';
+                html += '  </div>';
+                html += '  <div class="insight-files">';
+                html += '    <div class="insight-files-content">';
+                html += '      <div class="insight-files-header">Affected Files</div>';
+                html += '      <ul class="files-list">';
+
+                // Collect all unique files from all items in this category
+                const allFiles = new Set();
+                group.items.forEach(item => {
+                    if (item.files) {
+                        item.files.forEach(file => allFiles.add(file));
+                    }
+                });
+
+                Array.from(allFiles).forEach(file => {
+                    html += '<li>' + file + '</li>';
+                });
+
+                html += '      </ul>';
+                html += '    </div>';
+                html += '  </div>';
                 html += '</div>';
             });
 
             container.innerHTML = html;
+        }
+
+        // Toggle insight card expansion
+        function toggleInsight(index) {
+            const card = document.getElementById('insight-' + index);
+            card.classList.toggle('expanded');
         }
 
         // Initialize visualizations
@@ -953,7 +1120,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 extensionChart = createExtensionChart(reportData.extensions);
             }
             if (reportData.optimizations) {
-                renderOptimizations(reportData.optimizations);
+                renderInsights(reportData.optimizations);
             }
         });
 
