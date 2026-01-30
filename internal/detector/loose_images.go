@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
@@ -87,7 +89,132 @@ func (d *LooseImagesDetector) Name() string {
 	return "loose-images"
 }
 
-// Detect runs the detector and returns a single aggregated optimization
+// imagePattern represents a group of related images
+type imagePattern struct {
+	baseName  string
+	images    []LooseImage
+	patternType string // "retina-variants", "multi-location", or "other"
+}
+
+// extractBaseName removes retina scale suffixes (@1x, @2x, @3x) from filename
+func extractBaseName(filename string) string {
+	// Match pattern like "Icon@2x.png" → "Icon"
+	re := regexp.MustCompile(`@[123]x`)
+	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
+	baseName := re.ReplaceAllString(nameWithoutExt, "")
+	return baseName
+}
+
+// detectPatterns groups loose images by base name and identifies redundancy patterns
+func detectPatterns(looseImages []LooseImage) []imagePattern {
+	// Group by base filename (without path and scale suffix)
+	grouped := make(map[string][]LooseImage)
+
+	for _, img := range looseImages {
+		filename := filepath.Base(img.Path)
+		baseName := extractBaseName(filename)
+		ext := filepath.Ext(filename)
+		key := baseName + ext // Group by base name + extension
+
+		grouped[key] = append(grouped[key], img)
+	}
+
+	var patterns []imagePattern
+
+	for baseName, images := range grouped {
+		if len(images) < 2 {
+			continue // Skip single images, not a pattern
+		}
+
+		// Detect pattern type
+		patternType := detectPatternType(images)
+		if patternType == "" {
+			continue // No detectable redundancy pattern
+		}
+
+		patterns = append(patterns, imagePattern{
+			baseName:    baseName,
+			images:      images,
+			patternType: patternType,
+		})
+	}
+
+	return patterns
+}
+
+// detectPatternType identifies what kind of redundancy exists
+func detectPatternType(images []LooseImage) string {
+	// Check for retina variants (@1x, @2x, @3x)
+	hasRetinaVariants := false
+	for _, img := range images {
+		filename := filepath.Base(img.Path)
+		if strings.Contains(filename, "@2x") || strings.Contains(filename, "@3x") || strings.Contains(filename, "@1x") {
+			hasRetinaVariants = true
+			break
+		}
+	}
+
+	if hasRetinaVariants {
+		return "retina-variants"
+	}
+
+	// Check for same filename in multiple locations with different sizes
+	sizeMap := make(map[int64]bool)
+	for _, img := range images {
+		sizeMap[img.Size] = true
+	}
+
+	if len(sizeMap) > 1 {
+		return "multi-location"
+	}
+
+	return "" // No detectable pattern
+}
+
+// calculatePatternSavings computes redundancy savings for a pattern
+func calculatePatternSavings(pattern imagePattern) int64 {
+	if len(pattern.images) < 2 {
+		return 0
+	}
+
+	switch pattern.patternType {
+	case "retina-variants":
+		// For retina variants, we keep the largest and generate others
+		// Savings = sum of all smaller variants
+		var totalSize int64
+		var maxSize int64
+
+		for _, img := range pattern.images {
+			totalSize += img.Size
+			if img.Size > maxSize {
+				maxSize = img.Size
+			}
+		}
+
+		// Save everything except the largest variant
+		return totalSize - maxSize
+
+	case "multi-location":
+		// For multiple locations with different sizes, keep the largest
+		var totalSize int64
+		var maxSize int64
+
+		for _, img := range pattern.images {
+			totalSize += img.Size
+			if img.Size > maxSize {
+				maxSize = img.Size
+			}
+		}
+
+		// Save everything except the largest
+		return totalSize - maxSize
+
+	default:
+		return 0
+	}
+}
+
+// Detect runs the detector and returns pattern-based optimizations
 func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, error) {
 	mapper := NewPathMapper(rootPath)
 	looseImages, err := DetectLooseImages(rootPath)
@@ -95,24 +222,56 @@ func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, err
 		return nil, err
 	}
 
-	var totalSize int64
-	var files []string
-	for _, img := range looseImages {
-		totalSize += img.Size
-		files = append(files, mapper.ToRelative(img.Path))
+	// Detect patterns (retina variants, multi-location duplicates)
+	patterns := detectPatterns(looseImages)
+
+	var optimizations []types.Optimization
+
+	// Create optimizations for detected patterns
+	for _, pattern := range patterns {
+		savings := calculatePatternSavings(pattern)
+		if savings <= 0 {
+			continue
+		}
+
+		var files []string
+		for _, img := range pattern.images {
+			files = append(files, mapper.ToRelative(img.Path))
+		}
+
+		// Sort files for consistent output
+		sort.Strings(files)
+
+		var title, description string
+		switch pattern.patternType {
+		case "retina-variants":
+			title = fmt.Sprintf("Consolidate %s into asset catalog", pattern.baseName)
+			description = fmt.Sprintf("Found %d retina scale variants that can be auto-generated from a single @3x image. "+
+				"Asset catalogs automatically generate @1x and @2x from @3x, eliminating manual variants.",
+				len(pattern.images))
+
+		case "multi-location":
+			title = fmt.Sprintf("Deduplicate %s across locations", pattern.baseName)
+			description = fmt.Sprintf("Same image appears in %d locations with different sizes. "+
+				"Keep the largest version in an asset catalog and generate other sizes as needed.",
+				len(pattern.images))
+		}
+
+		optimizations = append(optimizations, types.Optimization{
+			Category:    "loose-images",
+			Severity:    "low",
+			Title:       title,
+			Description: description,
+			Impact:      savings,
+			Files:       files,
+			Action:      "Move images to .xcassets and enable app thinning with automatic scale generation",
+		})
 	}
 
-	if totalSize <= 10*1024 {
-		return nil, nil // Skip if too small
-	}
+	// Sort optimizations by impact (highest first)
+	sort.Slice(optimizations, func(i, j int) bool {
+		return optimizations[i].Impact > optimizations[j].Impact
+	})
 
-	return []types.Optimization{{
-		Category:    "loose-images",
-		Severity:    "low",
-		Title:       fmt.Sprintf("Move %d loose images to asset catalog", len(files)),
-		Description: "Images outside asset catalogs don't benefit from app thinning and asset compression",
-		Impact:      totalSize / 4, // 25% estimated savings
-		Files:       files,
-		Action:      "Move images to .xcassets and use asset catalog compilation",
-	}}, nil
+	return optimizations, nil
 }
