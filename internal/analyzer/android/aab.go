@@ -90,6 +90,74 @@ func detectModules(nodes []*types.FileNode) []string {
 	return modules
 }
 
+// categorizeAABDirectory checks if a directory should be categorized as a whole.
+// Returns true if categorized.
+func categorizeAABDirectory(node *types.FileNode, breakdown *types.SizeBreakdown) bool {
+	dirName := strings.ToLower(node.Name)
+
+	switch dirName {
+	case "lib":
+		breakdown.Libraries += node.Size
+		breakdown.ByCategory["Native Libraries"] += node.Size
+		return true
+	case "res":
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return true
+	case "assets":
+		breakdown.Assets += node.Size
+		breakdown.ByCategory["Assets"] += node.Size
+		return true
+	case "dex":
+		breakdown.DEX += node.Size
+		breakdown.ByCategory["DEX Files"] += node.Size
+		return true
+	}
+
+	return false
+}
+
+// categorizeAABFile categorizes an individual file and updates the breakdown
+func categorizeAABFile(node *types.FileNode, breakdown *types.SizeBreakdown) {
+	ext := util.GetLowerExtension(node.Name)
+	baseName := strings.ToLower(node.Name)
+
+	// Update extension stats
+	if ext != "" {
+		breakdown.ByExtension[ext] += node.Size
+	}
+
+	// Categorize by file type
+	if ext == ".dex" {
+		breakdown.DEX += node.Size
+		breakdown.ByCategory["DEX Files"] += node.Size
+		return
+	}
+
+	if ext == ".so" {
+		breakdown.Libraries += node.Size
+		breakdown.ByCategory["Native Libraries"] += node.Size
+		return
+	}
+
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
+		ext == ".gif" || ext == ".webp" || ext == ".xml" {
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	if baseName == "androidmanifest.xml" || baseName == "resources.pb" ||
+		baseName == "bundleconfig.pb" {
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	breakdown.Other += node.Size
+	breakdown.ByCategory["Other"] += node.Size
+}
+
 // categorizeAABSizes creates a size breakdown for AAB
 func categorizeAABSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	breakdown := types.SizeBreakdown{
@@ -100,62 +168,26 @@ func categorizeAABSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	var categorizeNode func(node *types.FileNode, modulePrefix string)
 	categorizeNode = func(node *types.FileNode, modulePrefix string) {
 		if node.IsDir {
-			dirName := strings.ToLower(node.Name)
-
 			// Track module sizes
 			if modulePrefix == "" {
 				modulePrefix = node.Name
 				breakdown.ByCategory["Module: "+modulePrefix] = node.Size
 			}
 
-			// Categorize by directory within module
-			if dirName == "lib" {
-				breakdown.Libraries += node.Size
-				breakdown.ByCategory["Native Libraries"] += node.Size
-			} else if dirName == "res" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else if dirName == "assets" {
-				breakdown.Assets += node.Size
-				breakdown.ByCategory["Assets"] += node.Size
-			} else if dirName == "dex" {
-				breakdown.DEX += node.Size
-				breakdown.ByCategory["DEX Files"] += node.Size
-			} else {
-				// Recurse
-				for _, child := range node.Children {
-					categorizeNode(child, modulePrefix)
-				}
-			}
-		} else {
-			ext := util.GetLowerExtension(node.Name)
-			baseName := strings.ToLower(node.Name)
-
-			// Update extension stats
-			if ext != "" {
-				breakdown.ByExtension[ext] += node.Size
+			// Check if this directory should be categorized as a whole
+			if categorizeAABDirectory(node, &breakdown) {
+				return
 			}
 
-			// Categorize by file type
-			if ext == ".dex" {
-				breakdown.DEX += node.Size
-				breakdown.ByCategory["DEX Files"] += node.Size
-			} else if ext == ".so" {
-				breakdown.Libraries += node.Size
-				breakdown.ByCategory["Native Libraries"] += node.Size
-			} else if ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-				ext == ".gif" || ext == ".webp" || ext == ".xml" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else if baseName == "androidmanifest.xml" || baseName == "resources.pb" ||
-				baseName == "bundleconfig.pb" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else {
-				breakdown.Other += node.Size
-				breakdown.ByCategory["Other"] += node.Size
+			// Otherwise, recurse into children
+			for _, child := range node.Children {
+				categorizeNode(child, modulePrefix)
 			}
+			return
 		}
+
+		// Categorize file
+		categorizeAABFile(node, &breakdown)
 	}
 
 	for _, node := range nodes {

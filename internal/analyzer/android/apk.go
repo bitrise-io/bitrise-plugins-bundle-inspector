@@ -104,6 +104,69 @@ func parseManifest(apkPath string) (map[string]interface{}, error) {
 	return manifest, nil
 }
 
+// categorizeAPKDirectory checks if a directory should be categorized as a whole.
+// Returns true if categorized.
+func categorizeAPKDirectory(node *types.FileNode, breakdown *types.SizeBreakdown) bool {
+	dirName := strings.ToLower(node.Name)
+
+	switch dirName {
+	case "lib":
+		breakdown.Libraries += node.Size
+		breakdown.ByCategory["Native Libraries"] += node.Size
+		return true
+	case "res":
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return true
+	case "assets":
+		breakdown.Assets += node.Size
+		breakdown.ByCategory["Assets"] += node.Size
+		return true
+	}
+
+	return false
+}
+
+// categorizeAPKFile categorizes an individual file and updates the breakdown
+func categorizeAPKFile(node *types.FileNode, breakdown *types.SizeBreakdown) {
+	ext := util.GetLowerExtension(node.Name)
+	baseName := strings.ToLower(node.Name)
+
+	// Update extension stats
+	if ext != "" {
+		breakdown.ByExtension[ext] += node.Size
+	}
+
+	// Categorize by file type
+	if ext == ".dex" {
+		breakdown.DEX += node.Size
+		breakdown.ByCategory["DEX Files"] += node.Size
+		return
+	}
+
+	if ext == ".so" {
+		breakdown.Libraries += node.Size
+		breakdown.ByCategory["Native Libraries"] += node.Size
+		return
+	}
+
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
+		ext == ".gif" || ext == ".webp" || ext == ".xml" {
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	if baseName == "androidmanifest.xml" || baseName == "resources.arsc" {
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	breakdown.Other += node.Size
+	breakdown.ByCategory["Other"] += node.Size
+}
+
 // categorizeAPKSizes creates a size breakdown for APK
 func categorizeAPKSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	breakdown := types.SizeBreakdown{
@@ -114,52 +177,20 @@ func categorizeAPKSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	var categorizeNode func(node *types.FileNode)
 	categorizeNode = func(node *types.FileNode) {
 		if node.IsDir {
-			dirName := strings.ToLower(node.Name)
-
-			// Categorize by directory
-			if dirName == "lib" {
-				breakdown.Libraries += node.Size
-				breakdown.ByCategory["Native Libraries"] += node.Size
-			} else if dirName == "res" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else if dirName == "assets" {
-				breakdown.Assets += node.Size
-				breakdown.ByCategory["Assets"] += node.Size
-			} else {
-				// Recurse
-				for _, child := range node.Children {
-					categorizeNode(child)
-				}
-			}
-		} else {
-			ext := util.GetLowerExtension(node.Name)
-			baseName := strings.ToLower(node.Name)
-
-			// Update extension stats
-			if ext != "" {
-				breakdown.ByExtension[ext] += node.Size
+			// Check if this directory should be categorized as a whole
+			if categorizeAPKDirectory(node, &breakdown) {
+				return
 			}
 
-			// Categorize by file type
-			if ext == ".dex" {
-				breakdown.DEX += node.Size
-				breakdown.ByCategory["DEX Files"] += node.Size
-			} else if ext == ".so" {
-				breakdown.Libraries += node.Size
-				breakdown.ByCategory["Native Libraries"] += node.Size
-			} else if ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-				ext == ".gif" || ext == ".webp" || ext == ".xml" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else if baseName == "androidmanifest.xml" || baseName == "resources.arsc" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else {
-				breakdown.Other += node.Size
-				breakdown.ByCategory["Other"] += node.Size
+			// Otherwise, recurse into children
+			for _, child := range node.Children {
+				categorizeNode(child)
 			}
+			return
 		}
+
+		// Categorize file
+		categorizeAPKFile(node, &breakdown)
 	}
 
 	for _, node := range nodes {

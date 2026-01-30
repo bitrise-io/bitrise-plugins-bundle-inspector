@@ -218,6 +218,62 @@ func analyzeDirectory(root, basePath string) ([]*types.FileNode, int64, error) {
 	return nodes, totalSize, nil
 }
 
+// categorizeIOSDirectory checks if a directory should be categorized as a whole
+// and updates the breakdown accordingly. Returns true if categorized.
+func categorizeIOSDirectory(node *types.FileNode, breakdown *types.SizeBreakdown) bool {
+	dirName := strings.ToLower(node.Name)
+
+	if strings.HasSuffix(dirName, ".framework") || dirName == "frameworks" {
+		breakdown.Frameworks += node.Size
+		breakdown.ByCategory["Frameworks"] += node.Size
+		return true
+	}
+
+	return false
+}
+
+// categorizeIOSFile categorizes an individual file and updates the breakdown
+func categorizeIOSFile(node *types.FileNode, breakdown *types.SizeBreakdown) {
+	ext := util.GetLowerExtension(node.Name)
+	baseName := strings.ToLower(node.Name)
+
+	// Update extension stats
+	if ext != "" {
+		breakdown.ByExtension[ext] += node.Size
+	}
+
+	// Categorize by type
+	if baseName == filepath.Base(node.Path) && ext == "" {
+		// Likely the main executable
+		breakdown.Executable += node.Size
+		breakdown.ByCategory["Executable"] += node.Size
+		return
+	}
+
+	if ext == ".dylib" || ext == ".a" || ext == ".so" {
+		breakdown.Libraries += node.Size
+		breakdown.ByCategory["Libraries"] += node.Size
+		return
+	}
+
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" ||
+		ext == ".car" || ext == ".pdf" || ext == ".svg" {
+		breakdown.Assets += node.Size
+		breakdown.ByCategory["Assets"] += node.Size
+		return
+	}
+
+	if ext == ".nib" || ext == ".storyboard" || ext == ".storyboardc" ||
+		ext == ".strings" || ext == ".plist" || ext == ".json" {
+		breakdown.Resources += node.Size
+		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	breakdown.Other += node.Size
+	breakdown.ByCategory["Other"] += node.Size
+}
+
 // categorizeSizes creates a size breakdown by category.
 func categorizeSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	breakdown := types.SizeBreakdown{
@@ -228,52 +284,20 @@ func categorizeSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	var categorizeNode func(node *types.FileNode)
 	categorizeNode = func(node *types.FileNode) {
 		if node.IsDir {
-			// Categorize by directory name
-			dirName := strings.ToLower(node.Name)
-
-			if strings.HasSuffix(dirName, ".framework") {
-				breakdown.Frameworks += node.Size
-				breakdown.ByCategory["Frameworks"] += node.Size
-			} else if dirName == "frameworks" {
-				breakdown.Frameworks += node.Size
-				breakdown.ByCategory["Frameworks"] += node.Size
-			} else {
-				// Recurse into children
-				for _, child := range node.Children {
-					categorizeNode(child)
-				}
-			}
-		} else {
-			// Categorize by file
-			ext := util.GetLowerExtension(node.Name)
-			baseName := strings.ToLower(node.Name)
-
-			// Update extension stats
-			if ext != "" {
-				breakdown.ByExtension[ext] += node.Size
+			// Check if this directory should be categorized as a whole
+			if categorizeIOSDirectory(node, &breakdown) {
+				return
 			}
 
-			// Categorize
-			if baseName == filepath.Base(node.Path) && ext == "" {
-				// Likely the main executable
-				breakdown.Executable += node.Size
-				breakdown.ByCategory["Executable"] += node.Size
-			} else if ext == ".dylib" || ext == ".a" || ext == ".so" {
-				breakdown.Libraries += node.Size
-				breakdown.ByCategory["Libraries"] += node.Size
-			} else if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" ||
-					  ext == ".car" || ext == ".pdf" || ext == ".svg" {
-				breakdown.Assets += node.Size
-				breakdown.ByCategory["Assets"] += node.Size
-			} else if ext == ".nib" || ext == ".storyboard" || ext == ".storyboardc" ||
-					  ext == ".strings" || ext == ".plist" || ext == ".json" {
-				breakdown.Resources += node.Size
-				breakdown.ByCategory["Resources"] += node.Size
-			} else {
-				breakdown.Other += node.Size
-				breakdown.ByCategory["Other"] += node.Size
+			// Otherwise, recurse into children
+			for _, child := range node.Children {
+				categorizeNode(child)
 			}
+			return
 		}
+
+		// Categorize file
+		categorizeIOSFile(node, &breakdown)
 	}
 
 	for _, node := range nodes {
