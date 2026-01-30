@@ -1,3 +1,6 @@
+//go:build cgo && darwin
+// +build cgo,darwin
+
 package compression
 
 import (

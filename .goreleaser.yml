@@ -1,0 +1,64 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: bundle-inspector
+    binary: bundle-inspector
+    main: ./cmd/bundle-inspector
+    env:
+      - CGO_ENABLED=0  # Pure Go build for cross-compilation
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w  # Strip debug info to reduce binary size
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    # Skip unsupported combinations
+    ignore:
+      - goos: linux
+        goarch: arm64  # Optional: uncomment if Linux ARM64 needed
+
+archives:
+  - id: bundle-inspector
+    format: binary  # Bitrise expects raw binaries, not archives
+    name_template: >-
+      bundle-inspector-
+      {{- if eq .Os "darwin" }}Darwin
+      {{- else if eq .Os "linux" }}Linux
+      {{- end }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "arm64" }}arm64
+      {{- end }}
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+
+release:
+  github:
+    owner: bitrise-io
+    name: bitrise-plugins-bundle-inspector
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} v{{.Version}}"
