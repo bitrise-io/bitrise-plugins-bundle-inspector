@@ -8,6 +8,30 @@ const htmlTemplate = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
     <style>
+        :root {
+            /* Light theme colors */
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --text-primary: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --text-tertiary: #86868b;
+            --border-color: #e5e5e7;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --shadow-hover: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="dark"] {
+            /* Dark theme colors */
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2a2a2a;
+            --text-primary: #f5f5f7;
+            --text-secondary: #a1a1a6;
+            --text-tertiary: #86868b;
+            --border-color: #3a3a3a;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --shadow-hover: rgba(0, 0, 0, 0.4);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -16,9 +40,10 @@ const htmlTemplate = `<!DOCTYPE html>
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #f5f5f7;
-            color: #1d1d1f;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .container {
@@ -28,17 +53,28 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         header {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
             padding: 30px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-content {
+            flex: 1;
         }
 
         h1 {
             font-size: 32px;
             font-weight: 600;
             margin-bottom: 10px;
+            color: var(--text-primary);
         }
 
         .artifact-info {
@@ -46,13 +82,37 @@ const htmlTemplate = `<!DOCTYPE html>
             gap: 15px;
             flex-wrap: wrap;
             margin-top: 15px;
-            color: #6e6e73;
+            color: var(--text-secondary);
         }
 
         .artifact-info span {
             display: flex;
             align-items: center;
             gap: 5px;
+        }
+
+        .theme-toggle {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px var(--shadow-hover);
+        }
+
+        .theme-icon {
+            font-size: 18px;
         }
 
         .metrics-grid {
@@ -63,27 +123,28 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         .metric-card {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .metric-label {
             font-size: 14px;
-            color: #6e6e73;
+            color: var(--text-secondary);
             margin-bottom: 8px;
         }
 
         .metric-value {
             font-size: 28px;
             font-weight: 600;
-            color: #1d1d1f;
+            color: var(--text-primary);
         }
 
         .metric-secondary {
             font-size: 14px;
-            color: #86868b;
+            color: var(--text-tertiary);
             margin-top: 4px;
         }
 
@@ -101,11 +162,17 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         .treemap-container {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
             min-height: 600px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .treemap-container h2 {
+            color: var(--text-primary);
+            margin-bottom: 15px;
         }
 
         #treemap {
@@ -120,16 +187,18 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         .chart-card {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .chart-card h2 {
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 15px;
+            color: var(--text-primary);
         }
 
         .chart {
@@ -138,23 +207,27 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         .optimizations-section {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .optimizations-section h2 {
             font-size: 24px;
             font-weight: 600;
             margin-bottom: 20px;
+            color: var(--text-primary);
         }
 
         .optimization-item {
-            border: 1px solid #e5e5e7;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 15px;
+            background: var(--bg-primary);
+            transition: border-color 0.3s ease, background-color 0.3s ease;
         }
 
         .optimization-item:last-child {
@@ -195,6 +268,7 @@ const htmlTemplate = `<!DOCTYPE html>
             flex: 1;
             font-size: 16px;
             font-weight: 600;
+            color: var(--text-primary);
         }
 
         .impact {
@@ -204,7 +278,7 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         .description {
-            color: #6e6e73;
+            color: var(--text-secondary);
             margin-bottom: 10px;
         }
 
@@ -232,7 +306,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
         .files-list li {
             padding: 4px 0;
-            color: #6e6e73;
+            color: var(--text-secondary);
             font-family: 'Monaco', 'Courier New', monospace;
             font-size: 12px;
         }
@@ -240,9 +314,11 @@ const htmlTemplate = `<!DOCTYPE html>
         .action {
             margin-top: 10px;
             padding: 10px;
-            background: #f5f5f7;
+            background: var(--bg-primary);
             border-radius: 6px;
             font-size: 14px;
+            color: var(--text-primary);
+            transition: background-color 0.3s ease;
         }
 
         .action strong {
@@ -256,15 +332,21 @@ const htmlTemplate = `<!DOCTYPE html>
         #search-input {
             width: 100%%;
             padding: 10px 15px;
-            border: 1px solid #d2d2d7;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 14px;
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
 
         #search-input:focus {
             border-color: #007aff;
+        }
+
+        #search-input::placeholder {
+            color: var(--text-tertiary);
         }
 
         .legend {
@@ -273,7 +355,7 @@ const htmlTemplate = `<!DOCTYPE html>
             gap: 10px;
             margin-top: 15px;
             padding-top: 15px;
-            border-top: 1px solid #e5e5e7;
+            border-top: 1px solid var(--border-color);
         }
 
         .legend-item {
@@ -281,6 +363,7 @@ const htmlTemplate = `<!DOCTYPE html>
             align-items: center;
             gap: 5px;
             font-size: 12px;
+            color: var(--text-secondary);
         }
 
         .legend-color {
@@ -292,8 +375,17 @@ const htmlTemplate = `<!DOCTYPE html>
         footer {
             text-align: center;
             padding: 20px;
-            color: #86868b;
+            color: var(--text-tertiary);
             font-size: 14px;
+        }
+
+        footer a {
+            color: #007aff;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
         }
 
         .warning-banner {
@@ -314,12 +406,18 @@ const htmlTemplate = `<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>{{.Title}}</h1>
-            <div class="artifact-info">
-                <span><strong>Artifact:</strong> {{.ArtifactName}}</span>
-                <span><strong>Type:</strong> {{.ArtifactType}}</span>
-                <span><strong>Analyzed:</strong> <time>{{.Timestamp}}</time></span>
+            <div class="header-content">
+                <h1>{{.Title}}</h1>
+                <div class="artifact-info">
+                    <span><strong>Artifact:</strong> {{.ArtifactName}}</span>
+                    <span><strong>Type:</strong> {{.ArtifactType}}</span>
+                    <span><strong>Analyzed:</strong> <time>{{.Timestamp}}</time></span>
+                </div>
             </div>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+                <span class="theme-icon">🌙</span>
+                <span class="theme-text">Dark Mode</span>
+            </button>
         </header>
 
         <div class="metrics-grid">
@@ -416,6 +514,71 @@ const htmlTemplate = `<!DOCTYPE html>
     <script>
         const reportData = {{.DataJSON}};
 
+        // Theme management
+        let currentTheme = 'light';
+        let treemapChart = null;
+        let categoryChart = null;
+        let extensionChart = null;
+
+        // Initialize theme from localStorage
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            currentTheme = savedTheme;
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeButton();
+        }
+
+        // Toggle theme
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('theme', currentTheme);
+            updateThemeButton();
+            updateChartsTheme();
+        }
+
+        // Update theme button text and icon
+        function updateThemeButton() {
+            const button = document.querySelector('.theme-toggle');
+            const icon = button.querySelector('.theme-icon');
+            const text = button.querySelector('.theme-text');
+
+            if (currentTheme === 'dark') {
+                icon.textContent = '☀️';
+                text.textContent = 'Light Mode';
+            } else {
+                icon.textContent = '🌙';
+                text.textContent = 'Dark Mode';
+            }
+        }
+
+        // Update all charts with new theme
+        function updateChartsTheme() {
+            if (treemapChart) {
+                const treemapOption = getTreemapOption(reportData.fileTree);
+                treemapChart.setOption(treemapOption, true);
+            }
+            if (categoryChart) {
+                const categoryOption = getCategoryChartOption(reportData.categories);
+                categoryChart.setOption(categoryOption, true);
+            }
+            if (extensionChart) {
+                const extensionOption = getExtensionChartOption(reportData.extensions);
+                extensionChart.setOption(extensionOption, true);
+            }
+        }
+
+        // Get theme colors for ECharts
+        function getThemeColors() {
+            const isDark = currentTheme === 'dark';
+            return {
+                textColor: isDark ? '#f5f5f7' : '#1d1d1f',
+                backgroundColor: isDark ? 'transparent' : 'transparent',
+                axisLineColor: isDark ? '#3a3a3a' : '#e5e5e7',
+                splitLineColor: isDark ? '#3a3a3a' : '#e5e5e7',
+            };
+        }
+
         // Format bytes helper
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -456,19 +619,24 @@ const htmlTemplate = `<!DOCTYPE html>
             }
         }
 
-        // Create treemap visualization
-        function createTreemap(data) {
-            const container = document.getElementById('treemap');
-            const myChart = echarts.init(container, null, {
-                renderer: 'canvas',
-                useDirtyRect: true
-            });
-
+        // Get treemap option with theme support
+        function getTreemapOption(data) {
             // Apply colors
             applyColorsToTree(data);
 
-            const option = {
+            const themeColors = getThemeColors();
+            const isDark = currentTheme === 'dark';
+            const borderColor = isDark ? '#666' : '#fff';
+            const emphasisBorder = isDark ? '#fff' : '#333';
+            const breadcrumbText = isDark ? '#f5f5f7' : '#333';
+
+            return {
                 tooltip: {
+                    backgroundColor: isDark ? '#2a2a2a' : '#fff',
+                    borderColor: isDark ? '#3a3a3a' : '#e5e5e7',
+                    textStyle: {
+                        color: themeColors.textColor
+                    },
                     formatter: function(info) {
                         const value = info.value;
                         const name = info.name;
@@ -499,17 +667,17 @@ const htmlTemplate = `<!DOCTYPE html>
                         show: true,
                         height: 25,
                         itemStyle: {
-                            color: 'rgba(255,255,255,0.7)',
-                            borderColor: 'rgba(255,255,255,0.7)',
+                            color: isDark ? 'rgba(42,42,42,0.9)' : 'rgba(255,255,255,0.7)',
+                            borderColor: isDark ? 'rgba(58,58,58,0.9)' : 'rgba(255,255,255,0.7)',
                             textStyle: {
-                                color: '#333'
+                                color: breadcrumbText
                             }
                         },
                         emphasis: {
                             itemStyle: {
-                                color: 'rgba(255,255,255,1)',
+                                color: isDark ? 'rgba(42,42,42,1)' : 'rgba(255,255,255,1)',
                                 textStyle: {
-                                    color: '#000'
+                                    color: breadcrumbText
                                 }
                             }
                         }
@@ -518,7 +686,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         show: true,
                         formatter: '{b}',
                         fontSize: 11,
-                        overflow: 'truncate'
+                        overflow: 'truncate',
+                        color: isDark ? '#fff' : '#000'
                     },
                     upperLabel: {
                         show: true,
@@ -527,7 +696,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         textBorderColor: 'transparent'
                     },
                     itemStyle: {
-                        borderColor: '#fff',
+                        borderColor: borderColor,
                         borderWidth: 2,
                         gapWidth: 2
                     },
@@ -538,7 +707,7 @@ const htmlTemplate = `<!DOCTYPE html>
                             fontWeight: 'bold'
                         },
                         itemStyle: {
-                            borderColor: '#333',
+                            borderColor: emphasisBorder,
                             borderWidth: 3
                         }
                     },
@@ -563,25 +732,40 @@ const htmlTemplate = `<!DOCTYPE html>
                     data: [data]
                 }]
             };
-
-            myChart.setOption(option);
-
-            window.addEventListener('resize', function() {
-                myChart.resize();
-            });
-
-            return myChart;
         }
 
-        // Create category donut chart
-        function createCategoryChart(categories) {
-            const container = document.getElementById('category-chart');
-            const myChart = echarts.init(container);
+        // Create treemap visualization
+        function createTreemap(data) {
+            const container = document.getElementById('treemap');
+            const chart = echarts.init(container, null, {
+                renderer: 'canvas',
+                useDirtyRect: true
+            });
 
-            const option = {
+            const option = getTreemapOption(data);
+            chart.setOption(option);
+
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+
+            return chart;
+        }
+
+        // Get category chart option with theme support
+        function getCategoryChartOption(categories) {
+            const themeColors = getThemeColors();
+            const isDark = currentTheme === 'dark';
+
+            return {
                 tooltip: {
                     trigger: 'item',
-                    formatter: '{b}: {c} ({d}%%)'
+                    formatter: '{b}: {c} ({d}%%)',
+                    backgroundColor: isDark ? '#2a2a2a' : '#fff',
+                    borderColor: isDark ? '#3a3a3a' : '#e5e5e7',
+                    textStyle: {
+                        color: themeColors.textColor
+                    }
                 },
                 series: [{
                     type: 'pie',
@@ -589,7 +773,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     avoidLabelOverlap: true,
                     itemStyle: {
                         borderRadius: 8,
-                        borderColor: '#fff',
+                        borderColor: isDark ? '#2a2a2a' : '#fff',
                         borderWidth: 2
                     },
                     label: {
@@ -597,7 +781,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         formatter: function(params) {
                             return params.name + '\n' + formatBytes(params.value);
                         },
-                        fontSize: 11
+                        fontSize: 11,
+                        color: themeColors.textColor
                     },
                     emphasis: {
                         label: {
@@ -612,23 +797,37 @@ const htmlTemplate = `<!DOCTYPE html>
                     }))
                 }]
             };
-
-            myChart.setOption(option);
-            window.addEventListener('resize', () => myChart.resize());
         }
 
-        // Create extension bar chart
-        function createExtensionChart(extensions) {
-            const container = document.getElementById('extension-chart');
-            const myChart = echarts.init(container);
+        // Create category donut chart
+        function createCategoryChart(categories) {
+            const container = document.getElementById('category-chart');
+            const chart = echarts.init(container);
 
-            const option = {
+            const option = getCategoryChartOption(categories);
+            chart.setOption(option);
+
+            window.addEventListener('resize', () => chart.resize());
+            return chart;
+        }
+
+        // Get extension chart option with theme support
+        function getExtensionChartOption(extensions) {
+            const themeColors = getThemeColors();
+            const isDark = currentTheme === 'dark';
+
+            return {
                 tooltip: {
                     trigger: 'axis',
                     axisPointer: { type: 'shadow' },
                     formatter: function(params) {
                         const data = params[0];
                         return data.name + ': ' + formatBytes(data.value);
+                    },
+                    backgroundColor: isDark ? '#2a2a2a' : '#fff',
+                    borderColor: isDark ? '#3a3a3a' : '#e5e5e7',
+                    textStyle: {
+                        color: themeColors.textColor
                     }
                 },
                 grid: {
@@ -642,14 +841,31 @@ const htmlTemplate = `<!DOCTYPE html>
                     type: 'value',
                     axisLabel: {
                         formatter: (value) => formatBytes(value),
-                        fontSize: 10
+                        fontSize: 10,
+                        color: themeColors.textColor
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: themeColors.axisLineColor
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: themeColors.splitLineColor
+                        }
                     }
                 },
                 yAxis: {
                     type: 'category',
                     data: extensions.map(e => e.name),
                     axisLabel: {
-                        fontSize: 10
+                        fontSize: 10,
+                        color: themeColors.textColor
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: themeColors.axisLineColor
+                        }
                     }
                 },
                 series: [{
@@ -665,13 +881,23 @@ const htmlTemplate = `<!DOCTYPE html>
                         show: true,
                         position: 'right',
                         formatter: (params) => formatBytes(params.value),
-                        fontSize: 10
+                        fontSize: 10,
+                        color: themeColors.textColor
                     }
                 }]
             };
+        }
 
-            myChart.setOption(option);
-            window.addEventListener('resize', () => myChart.resize());
+        // Create extension bar chart
+        function createExtensionChart(extensions) {
+            const container = document.getElementById('extension-chart');
+            const chart = echarts.init(container);
+
+            const option = getExtensionChartOption(extensions);
+            chart.setOption(option);
+
+            window.addEventListener('resize', () => chart.resize());
+            return chart;
         }
 
         // Render optimizations
@@ -713,14 +939,18 @@ const htmlTemplate = `<!DOCTYPE html>
 
         // Initialize visualizations
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize theme first
+            initTheme();
+
+            // Create charts and store instances
             if (reportData.fileTree) {
-                createTreemap(reportData.fileTree);
+                treemapChart = createTreemap(reportData.fileTree);
             }
             if (reportData.categories && reportData.categories.length > 0) {
-                createCategoryChart(reportData.categories);
+                categoryChart = createCategoryChart(reportData.categories);
             }
             if (reportData.extensions && reportData.extensions.length > 0) {
-                createExtensionChart(reportData.extensions);
+                extensionChart = createExtensionChart(reportData.extensions);
             }
             if (reportData.optimizations) {
                 renderOptimizations(reportData.optimizations);
