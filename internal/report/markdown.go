@@ -34,8 +34,8 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 		emoji string
 		open  bool
 	}{
-		{"strip-symbols", "Strip Binary Symbols", "🔧", true},
-		{"frameworks", "Unused Frameworks", "📦", true},
+		{"strip-symbols", "Strip Binary Symbols", "🔧", false},
+		{"frameworks", "Unused Frameworks", "📦", false},
 		{"duplicates", "Duplicate Files", "🔄", false},
 		{"image-optimization", "Image Optimization", "🖼️", false},
 		{"loose-images", "Loose Images", "📸", false},
@@ -98,14 +98,6 @@ func (f *MarkdownFormatter) writeHeader(w io.Writer, report *types.Report) error
 	}
 	if _, err := fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |\n\n",
 		artifactName, commitHash, util.FormatBytes(installSize), util.FormatBytes(downloadSize), potentialSavings); err != nil {
-		return err
-	}
-
-	// Additional context
-	totalFiles := countFiles(report.FileTree)
-	categoryGroups := getCategoryGroups(report.Optimizations)
-	if _, err := fmt.Fprintf(w, "**Analysis:** %s files analyzed, %d optimizations found across %d categories\n\n",
-		util.FormatNumber(int64(totalFiles)), len(report.Optimizations), len(categoryGroups)); err != nil {
 		return err
 	}
 

@@ -146,12 +146,6 @@ func TestMarkdownFormatter_writeHeader(t *testing.T) {
 	if !strings.Contains(output, "10.0 MB") {
 		t.Error("Missing size information")
 	}
-	if !strings.Contains(output, "**Analysis:**") {
-		t.Error("Missing analysis summary")
-	}
-	if !strings.Contains(output, "2 optimizations found across 2 categories") {
-		t.Error("Missing optimization counts")
-	}
 }
 
 func TestMarkdownFormatter_writeSizeBreakdown(t *testing.T) {
@@ -362,16 +356,19 @@ func TestMarkdownFormatter_writeOptimizations_Category(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := formatter.writeOptimizations(&buf, opts, "Strip Binary Symbols", "🔧", true)
+	err := formatter.writeOptimizations(&buf, opts, "Strip Binary Symbols", "🔧", false)
 	if err != nil {
 		t.Fatalf("writeOptimizations() failed: %v", err)
 	}
 
 	output := buf.String()
 
-	// Check section is open
-	if !strings.Contains(output, "<details open>") {
-		t.Error("First category should be open by default")
+	// Check section is collapsed
+	if strings.Contains(output, "<details open>") {
+		t.Error("Category should be collapsed by default")
+	}
+	if !strings.Contains(output, "<details>") {
+		t.Error("Missing details tag")
 	}
 
 	// Check category name
@@ -379,18 +376,15 @@ func TestMarkdownFormatter_writeOptimizations_Category(t *testing.T) {
 		t.Error("Missing category name")
 	}
 
-	// Check optimization details
+	// Check table format
+	if !strings.Contains(output, "| Issue | Files | Savings |") {
+		t.Error("Missing table header")
+	}
 	if !strings.Contains(output, "Strip debug symbols from binary") {
-		t.Error("Missing optimization title")
+		t.Error("Missing optimization title in table")
 	}
-	if !strings.Contains(output, "**Impact:**") {
-		t.Error("Missing impact")
-	}
-	if !strings.Contains(output, "**Action:**") {
-		t.Error("Missing action")
-	}
-	if !strings.Contains(output, "**Files:**") {
-		t.Error("Missing files section")
+	if !strings.Contains(output, "1.0 MB") {
+		t.Error("Missing savings in table")
 	}
 }
 
