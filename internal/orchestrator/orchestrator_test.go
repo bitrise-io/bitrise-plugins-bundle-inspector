@@ -102,9 +102,4 @@ func TestNew(t *testing.T) {
 	if !orch.IncludeDuplicates {
 		t.Error("Expected IncludeDuplicates to be true by default")
 	}
-
-	expectedThreshold := int64(1024 * 1024) // 1MB
-	if orch.ThresholdBytes != expectedThreshold {
-		t.Errorf("Expected ThresholdBytes to be %d, got %d", expectedThreshold, orch.ThresholdBytes)
-	}
 }

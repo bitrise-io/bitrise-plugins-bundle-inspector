@@ -16,7 +16,6 @@ import (
 // Orchestrator coordinates the analysis workflow
 type Orchestrator struct {
 	IncludeDuplicates bool
-	ThresholdBytes    int64
 	Logger            logger.Logger
 }
 
@@ -24,7 +23,6 @@ type Orchestrator struct {
 func New() *Orchestrator {
 	return &Orchestrator{
 		IncludeDuplicates: true,
-		ThresholdBytes:    1024 * 1024, // 1MB default
 		Logger:            logger.NewDefaultLogger(os.Stderr, logger.LevelInfo),
 	}
 }
@@ -142,21 +140,6 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 			Files:       dup.Files,
 			Action:      "Keep only one copy and deduplicate references",
 		})
-	}
-
-	// Add large file optimizations
-	for _, file := range report.LargestFiles {
-		if file.Size >= o.ThresholdBytes {
-			optimizations = append(optimizations, types.Optimization{
-				Category:    "bloat",
-				Severity:    getSeverity(file.Size, report.ArtifactInfo.Size),
-				Title:       fmt.Sprintf("Large file: %s", file.Name),
-				Description: fmt.Sprintf("File is %s, exceeds threshold of %s", util.FormatBytes(file.Size), util.FormatBytes(o.ThresholdBytes)),
-				Impact:      0, // Potential savings depends on action
-				Files:       []string{file.Path},
-				Action:      "Review if file is necessary or can be optimized",
-			})
-		}
 	}
 
 	return optimizations

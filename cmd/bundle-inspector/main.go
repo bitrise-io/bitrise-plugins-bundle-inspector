@@ -12,7 +12,6 @@ import (
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/bitrise"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/orchestrator"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/report"
-	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -26,7 +25,6 @@ var (
 	outputFormat      string
 	outputFile        string
 	includeDuplicates bool
-	threshold         string
 	noAutoDetect      bool
 )
 
@@ -76,7 +74,6 @@ func init() {
 	analyzeCmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json, markdown, html)")
 	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "", "Write output to file instead of stdout")
 	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true, "Enable duplicate file detection")
-	analyzeCmd.Flags().StringVar(&threshold, "threshold", "1MB", "Large file warning threshold")
 	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false, "Disable auto-detection of bundle path from Bitrise environment")
 }
 
@@ -104,16 +101,9 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("artifact not found: %w", err)
 	}
 
-	// Parse threshold
-	thresholdBytes, err := util.ParseSize(threshold)
-	if err != nil {
-		return fmt.Errorf("invalid threshold: %w", err)
-	}
-
 	// Create orchestrator
 	orch := orchestrator.New()
 	orch.IncludeDuplicates = includeDuplicates
-	orch.ThresholdBytes = thresholdBytes
 
 	// Perform analysis
 	fmt.Fprintf(os.Stderr, "Analyzing %s...\n", artifactPath)
