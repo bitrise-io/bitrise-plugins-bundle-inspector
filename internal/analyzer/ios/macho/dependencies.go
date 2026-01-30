@@ -45,14 +45,25 @@ func BuildDependencyGraph(frameworks map[string]*types.BinaryInfo) DependencyGra
 // DetectUnusedFrameworks identifies frameworks that are not linked by the main binary
 // or any other framework. Returns a list of potentially unused framework paths.
 func DetectUnusedFrameworks(graph DependencyGraph, mainBinaryPath string) []string {
+	// Validate main binary path
+	if mainBinaryPath == "" {
+		return nil
+	}
+
+	// Check if main binary exists in the dependency graph
+	mainDeps, exists := graph[mainBinaryPath]
+	if !exists {
+		// Main binary not found in graph - likely a bug or non-Mach-O file
+		// Return empty instead of false positives
+		return nil
+	}
+
 	// Build a set of all referenced frameworks
 	referenced := make(map[string]bool)
 
 	// Add direct dependencies of main binary
-	if mainDeps, ok := graph[mainBinaryPath]; ok {
-		for _, dep := range mainDeps {
-			referenced[dep] = true
-		}
+	for _, dep := range mainDeps {
+		referenced[dep] = true
 	}
 
 	// Recursively add transitive dependencies

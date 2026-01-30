@@ -157,3 +157,44 @@ func TestIsSystemLibrary(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectUnusedFrameworks_EmptyMainBinary(t *testing.T) {
+	graph := DependencyGraph{
+		"Frameworks/A.framework/A": []string{},
+		"Frameworks/B.framework/B": []string{},
+	}
+
+	// Empty main binary path should return nil
+	unused := DetectUnusedFrameworks(graph, "")
+	assert.Nil(t, unused)
+}
+
+func TestDetectUnusedFrameworks_MainBinaryNotInGraph(t *testing.T) {
+	graph := DependencyGraph{
+		"Frameworks/A.framework/A": []string{},
+		"Frameworks/B.framework/B": []string{},
+	}
+
+	// Main binary not in graph should return nil instead of false positives
+	unused := DetectUnusedFrameworks(graph, "PkgInfo")
+	assert.Nil(t, unused, "should return nil when main binary not found in graph")
+
+	unused = DetectUnusedFrameworks(graph, "NonExistent")
+	assert.Nil(t, unused, "should return nil when main binary doesn't exist")
+}
+
+func TestDetectUnusedFrameworks_MainBinaryExists(t *testing.T) {
+	graph := DependencyGraph{
+		"Runner": []string{
+			"Frameworks/A.framework/A",
+		},
+		"Frameworks/A.framework/A": []string{},
+		"Frameworks/B.framework/B": []string{},
+	}
+
+	// When main binary exists in graph, should work correctly
+	unused := DetectUnusedFrameworks(graph, "Runner")
+	assert.Len(t, unused, 1)
+	assert.Contains(t, unused, "Frameworks/B.framework/B")
+	assert.NotContains(t, unused, "Frameworks/A.framework/A")
+}

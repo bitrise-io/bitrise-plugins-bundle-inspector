@@ -360,15 +360,58 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 
 // findMainBinary identifies the main executable binary in the file tree.
 // The main binary is typically at the root level and has no extension.
+// It filters out metadata files like PkgInfo and selects the largest candidate.
 func findMainBinary(nodes []*types.FileNode) string {
+	var candidates []struct {
+		path string
+		size int64
+	}
+
+	// Find all files without extension at root level
 	for _, node := range nodes {
 		if !node.IsDir && filepath.Ext(node.Name) == "" {
-			// Check if it's a Mach-O binary
-			// Typically the main binary has the same name as the app bundle
-			return node.Path
+			// Skip known metadata files
+			if isMetadataFile(node.Name) {
+				continue
+			}
+			candidates = append(candidates, struct {
+				path string
+				size int64
+			}{node.Path, node.Size})
 		}
 	}
-	return ""
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	// Return the largest file (main executable is typically largest)
+	// This handles cases where multiple extensionless files exist
+	maxIdx := 0
+	for i := 1; i < len(candidates); i++ {
+		if candidates[i].size > candidates[maxIdx].size {
+			maxIdx = i
+		}
+	}
+
+	return candidates[maxIdx].path
+}
+
+// isMetadataFile checks if a filename is a known iOS metadata file that should
+// not be treated as the main executable.
+func isMetadataFile(name string) bool {
+	metadataFiles := []string{
+		"PkgInfo",
+		"CodeResources",
+		"_CodeSignature",
+		"embedded.mobileprovision",
+	}
+	for _, metadata := range metadataFiles {
+		if name == metadata {
+			return true
+		}
+	}
+	return false
 }
 
 // parseAssetCatalogs scans the file tree for .car files and parses them.
