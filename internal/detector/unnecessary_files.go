@@ -90,8 +90,11 @@ func (d *UnnecessaryFilesDetector) Name() string {
 func (d *UnnecessaryFilesDetector) Detect(rootPath string) ([]types.Optimization, error) {
 	mapper := util.NewPathMapper(rootPath)
 	unnecessary, err := DetectUnnecessaryFiles(rootPath)
-	if err != nil || len(unnecessary) == 0 {
-		return nil, err
+	if err != nil {
+		return nil, WrapError("unnecessary-files", "detecting unnecessary files", err)
+	}
+	if len(unnecessary) == 0 {
+		return nil, nil
 	}
 
 	// Group by reason

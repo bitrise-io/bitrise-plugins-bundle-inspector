@@ -8,6 +8,7 @@ import (
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/detector"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -16,6 +17,7 @@ import (
 type Orchestrator struct {
 	IncludeDuplicates bool
 	ThresholdBytes    int64
+	Logger            logger.Logger
 }
 
 // New creates a new orchestrator with default settings
@@ -23,6 +25,7 @@ func New() *Orchestrator {
 	return &Orchestrator{
 		IncludeDuplicates: true,
 		ThresholdBytes:    1024 * 1024, // 1MB default
+		Logger:            logger.NewDefaultLogger(os.Stderr, logger.LevelInfo),
 	}
 }
 
@@ -44,7 +47,7 @@ func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*t
 	if o.IncludeDuplicates {
 		if err := o.runDetectors(report, artifactPath); err != nil {
 			// Log warning but don't fail
-			fmt.Fprintf(os.Stderr, "Warning: detector execution had issues: %v\n", err)
+			o.Logger.Warn("detector execution had issues: %v", err)
 		}
 	}
 
@@ -75,7 +78,7 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 	dupDetector := detector.NewDuplicateDetector()
 	duplicates, err := dupDetector.DetectDuplicates(extractPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: duplicate detection failed: %v\n", err)
+		o.Logger.Warn("duplicate detection failed: %v", err)
 	} else {
 		report.Duplicates = duplicates
 	}
@@ -116,7 +119,7 @@ func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath 
 	for _, d := range detectors {
 		opts, err := d.Detect(extractPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: %s detector failed: %v\n", d.Name(), err)
+			o.Logger.Warn("%s detector failed: %v", d.Name(), err)
 			continue
 		}
 		report.Optimizations = append(report.Optimizations, opts...)

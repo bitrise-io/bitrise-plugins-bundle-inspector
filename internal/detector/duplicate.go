@@ -74,7 +74,7 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 
 	// Check for errors
 	if err := <-errors; err != nil {
-		return nil, err
+		return nil, WrapError("duplicate", "computing file hashes", err)
 	}
 
 	// Phase 3: Build duplicate sets from hash groups

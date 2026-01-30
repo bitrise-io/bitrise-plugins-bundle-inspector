@@ -77,7 +77,8 @@ func NewImageOptimizationDetector() *ImageOptimizationDetector {
 // sips is built into macOS and required for accurate HEIC conversion measurement
 func checkSipsAvailable() error {
 	if _, err := exec.LookPath("sips"); err != nil {
-		return fmt.Errorf("sips command not found - this tool requires macOS with sips for image optimization detection")
+		return WrapError("image-optimization", "checking sips availability",
+			fmt.Errorf("sips command not found - this tool requires macOS with sips for image optimization detection"))
 	}
 	return nil
 }
@@ -112,14 +113,16 @@ func measureActualHEICConversion(imagePath string) (int64, error) {
 	// Get original size
 	originalInfo, err := os.Stat(imagePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to stat original: %w", err)
+		return 0, WrapError("image-optimization", "measuring HEIC conversion",
+			fmt.Errorf("failed to stat original: %w", err))
 	}
 	originalSize := originalInfo.Size()
 
 	// Create temp HEIC file
 	tmpFile, err := os.CreateTemp("", "heic_conversion_*.heic")
 	if err != nil {
-		return 0, fmt.Errorf("failed to create temp file: %w", err)
+		return 0, WrapError("image-optimization", "measuring HEIC conversion",
+			fmt.Errorf("failed to create temp file: %w", err))
 	}
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
@@ -128,20 +131,23 @@ func measureActualHEICConversion(imagePath string) (int64, error) {
 	// Convert to HEIC using sips
 	cmd := exec.Command("sips", "-s", "format", "heic", imagePath, "--out", tmpPath)
 	if err := cmd.Run(); err != nil {
-		return 0, fmt.Errorf("sips conversion failed: %w", err)
+		return 0, WrapError("image-optimization", "measuring HEIC conversion",
+			fmt.Errorf("sips conversion failed: %w", err))
 	}
 
 	// Get converted size
 	convertedInfo, err := os.Stat(tmpPath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to stat converted: %w", err)
+		return 0, WrapError("image-optimization", "measuring HEIC conversion",
+			fmt.Errorf("failed to stat converted: %w", err))
 	}
 	convertedSize := convertedInfo.Size()
 
 	// Calculate savings
 	savings := originalSize - convertedSize
 	if savings <= 0 {
-		return 0, fmt.Errorf("no savings achieved (HEIC: %d bytes vs original: %d bytes)", convertedSize, originalSize)
+		return 0, WrapError("image-optimization", "measuring HEIC conversion",
+			fmt.Errorf("no savings achieved (HEIC: %d bytes vs original: %d bytes)", convertedSize, originalSize))
 	}
 
 	return savings, nil
@@ -219,5 +225,9 @@ func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimizatio
 		return nil
 	})
 
-	return optimizations, err
+	if err != nil {
+		return nil, WrapError("image-optimization", "detecting optimizations", err)
+	}
+
+	return optimizations, nil
 }

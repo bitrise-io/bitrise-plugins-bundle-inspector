@@ -224,8 +224,11 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, error) {
 	mapper := util.NewPathMapper(rootPath)
 	looseImages, err := DetectLooseImages(rootPath)
-	if err != nil || len(looseImages) == 0 {
-		return nil, err
+	if err != nil {
+		return nil, WrapError("loose-images", "detecting loose images", err)
+	}
+	if len(looseImages) == 0 {
+		return nil, nil
 	}
 
 	// Detect patterns (retina variants, multi-location duplicates)
