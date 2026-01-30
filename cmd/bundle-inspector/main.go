@@ -24,6 +24,7 @@ var (
 var (
 	outputFormat      string
 	outputFile        string
+	writeStdout       bool
 	includeDuplicates bool
 	noAutoDetect      bool
 )
@@ -72,7 +73,8 @@ func init() {
 
 	// Add flags
 	analyzeCmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json, markdown, html)")
-	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "", "Write output to file instead of stdout")
+	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "", "Override default output filename (default: bundle-analysis.<format>)")
+	analyzeCmd.Flags().BoolVar(&writeStdout, "stdout", false, "Write output to stdout instead of file")
 	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true, "Enable duplicate file detection")
 	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false, "Disable auto-detection of bundle path from Bitrise environment")
 }
@@ -117,17 +119,39 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("analysis failed: %w", err)
 	}
 
-	// Format output
+	// Determine output destination
 	var writer *os.File
-	if outputFile != "" {
-		f, err := os.Create(outputFile)
+	var actualOutputFile string
+
+	if writeStdout {
+		// Explicitly write to stdout
+		writer = os.Stdout
+	} else {
+		// Write to file (either specified or default)
+		if outputFile != "" {
+			actualOutputFile = outputFile
+		} else {
+			// Generate default filename based on format
+			switch outputFormat {
+			case "json":
+				actualOutputFile = "bundle-analysis.json"
+			case "markdown":
+				actualOutputFile = "bundle-analysis.md"
+			case "text":
+				actualOutputFile = "bundle-analysis.txt"
+			case "html":
+				actualOutputFile = "bundle-analysis.html"
+			default:
+				actualOutputFile = "bundle-analysis.txt"
+			}
+		}
+
+		f, err := os.Create(actualOutputFile)
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer f.Close()
 		writer = f
-	} else {
-		writer = os.Stdout
 	}
 
 	switch outputFormat {
@@ -152,8 +176,8 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unsupported output format: %s", outputFormat)
 	}
 
-	if outputFile != "" {
-		fmt.Fprintf(os.Stderr, "Report written to: %s\n", outputFile)
+	if !writeStdout {
+		fmt.Fprintf(os.Stderr, "Report written to: %s\n", actualOutputFile)
 	}
 
 	// Export to Bitrise deploy directory if in Bitrise environment
