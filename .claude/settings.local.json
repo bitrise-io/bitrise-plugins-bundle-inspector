@@ -23,7 +23,8 @@
       "Bash(xargs stat:*)",
       "Bash(find:*)",
       "Bash(size -m:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(unzip:*)"
     ]
   }
 }

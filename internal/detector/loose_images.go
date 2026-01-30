@@ -171,7 +171,19 @@ func detectPatternType(images []LooseImage) string {
 	return "" // No detectable pattern
 }
 
+// calculateDiskUsageForImage returns the actual disk space used by an image file
+// iOS uses APFS with 4 KB block size, so even small files occupy a full block
+func calculateDiskUsageForImage(fileSize int64) int64 {
+	if fileSize == 0 {
+		return 0
+	}
+	// Round up to nearest block size (blockSize is defined in duplicate.go)
+	blocks := (fileSize + blockSize - 1) / blockSize
+	return blocks * blockSize
+}
+
 // calculatePatternSavings computes redundancy savings for a pattern
+// Uses disk usage (4 KB blocks) instead of file sizes for accurate savings
 func calculatePatternSavings(pattern imagePattern) int64 {
 	if len(pattern.images) < 2 {
 		return 0
@@ -180,34 +192,37 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 	switch pattern.patternType {
 	case "retina-variants":
 		// For retina variants, we keep the largest and generate others
-		// Savings = sum of all smaller variants
-		var totalSize int64
-		var maxSize int64
+		// Savings = sum of disk usage of all smaller variants
+		var totalDiskUsage int64
+		var maxDiskUsage int64
 
 		for _, img := range pattern.images {
-			totalSize += img.Size
-			if img.Size > maxSize {
-				maxSize = img.Size
+			diskUsage := calculateDiskUsageForImage(img.Size)
+			totalDiskUsage += diskUsage
+			if diskUsage > maxDiskUsage {
+				maxDiskUsage = diskUsage
 			}
 		}
 
 		// Save everything except the largest variant
-		return totalSize - maxSize
+		return totalDiskUsage - maxDiskUsage
 
 	case "multi-location":
 		// For multiple locations with different sizes, keep the largest
-		var totalSize int64
-		var maxSize int64
+		// Savings = sum of disk usage of smaller files
+		var totalDiskUsage int64
+		var maxDiskUsage int64
 
 		for _, img := range pattern.images {
-			totalSize += img.Size
-			if img.Size > maxSize {
-				maxSize = img.Size
+			diskUsage := calculateDiskUsageForImage(img.Size)
+			totalDiskUsage += diskUsage
+			if diskUsage > maxDiskUsage {
+				maxDiskUsage = diskUsage
 			}
 		}
 
 		// Save everything except the largest
-		return totalSize - maxSize
+		return totalDiskUsage - maxDiskUsage
 
 	default:
 		return 0

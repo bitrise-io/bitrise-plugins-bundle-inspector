@@ -9,6 +9,8 @@ import (
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
+// blockSize is defined in duplicate.go (4096 - APFS block size on iOS)
+
 var unnecessaryPatterns = []string{
 	"module.modulemap", // Clang module maps (not needed in release)
 	".swiftmodule",     // Swift module files (not needed in release)
@@ -70,6 +72,17 @@ func getRemovalReason(pattern string) string {
 	}
 }
 
+// calculateDiskUsage returns the actual disk space used by a file
+// iOS uses APFS with 4 KB block size, so even small files occupy a full block
+func calculateDiskUsage(fileSize int64) int64 {
+	if fileSize == 0 {
+		return 0
+	}
+	// Round up to nearest block size
+	blocks := (fileSize + blockSize - 1) / blockSize
+	return blocks * blockSize
+}
+
 // UnnecessaryFilesDetector implements the Detector interface
 type UnnecessaryFilesDetector struct{}
 
@@ -100,16 +113,17 @@ func (d *UnnecessaryFilesDetector) Detect(rootPath string) ([]types.Optimization
 	for _, file := range unnecessary {
 		entry := grouped[file.Reason]
 		entry.files = append(entry.files, mapper.ToRelative(file.Path))
-		entry.size += file.Size
+		// Use disk usage instead of file size for accurate savings calculation
+		// iOS uses APFS with 4 KB blocks, so even a 95-byte file uses 4 KB on disk
+		entry.size += calculateDiskUsage(file.Size)
 		grouped[file.Reason] = entry
 	}
 
 	// Create optimizations
 	var optimizations []types.Optimization
 	for reason, data := range grouped {
-		if data.size < 1024 {
-			continue // Skip if too small
-		}
+		// No size threshold - report all unnecessary files regardless of size
+		// Even small files like module.modulemap should be removed from production builds
 
 		optimizations = append(optimizations, types.Optimization{
 			Category:    "unnecessary-files",
