@@ -65,14 +65,25 @@ func TestMarkdownFormatter_Format_CompleteReport(t *testing.T) {
 		"## Bitrise Report",
 		"| Bundle | Commit | Install Size | Download Size | Potential Savings |",
 		"🔧 Strip Binary Symbols",
-		"📊 Size Breakdown by Category",
-		"📦 Top",
-		"🔄 Duplicate Files Found",
+		"🔄 Duplicate Files",
 	}
 
 	for _, section := range expectedSections {
 		if !strings.Contains(output, section) {
 			t.Errorf("Output missing section: %s", section)
+		}
+	}
+
+	// Check that removed sections don't exist
+	removedSections := []string{
+		"📊 Size Breakdown by Category",
+		"📦 Top",
+		"🔍 Size by File Extension",
+	}
+
+	for _, section := range removedSections {
+		if strings.Contains(output, section) {
+			t.Errorf("Output should not contain section: %s", section)
 		}
 	}
 

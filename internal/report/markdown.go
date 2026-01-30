@@ -49,28 +49,6 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 		}
 	}
 
-	// Write size breakdown
-	if err := f.writeSizeBreakdown(w, report); err != nil {
-		return err
-	}
-
-	// Write largest files
-	if err := f.writeLargestFiles(w, report); err != nil {
-		return err
-	}
-
-	// Write duplicates detail (only if present)
-	if len(report.Duplicates) > 0 {
-		if err := f.writeDuplicates(w, report); err != nil {
-			return err
-		}
-	}
-
-	// Write by extension (only if data exists)
-	if err := f.writeByExtension(w, report); err != nil {
-		return err
-	}
-
 	return nil
 }
 
