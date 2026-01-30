@@ -298,48 +298,43 @@ func (f *MarkdownFormatter) writeOptimizations(
 			return err
 		}
 	} else {
-		for i, opt := range opts {
-			if i > 0 {
-				if _, err := fmt.Fprintf(w, "---\n\n"); err != nil {
-					return err
-				}
-			}
+		// Write table header
+		if _, err := fmt.Fprintf(w, "| Issue | Files | Savings |\n"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "|-------|-------|--------:|\n"); err != nil {
+			return err
+		}
 
-			if _, err := fmt.Fprintf(w, "#### %s\n", opt.Title); err != nil {
-				return err
-			}
-
-			if opt.Description != "" {
-				if _, err := fmt.Fprintf(w, "%s\n", opt.Description); err != nil {
-					return err
-				}
-			}
-
-			if _, err := fmt.Fprintf(w, "- **Impact:** %s\n", util.FormatBytes(opt.Impact)); err != nil {
-				return err
-			}
-
-			if opt.Action != "" {
-				if _, err := fmt.Fprintf(w, "- **Action:** %s\n", opt.Action); err != nil {
-					return err
-				}
-			}
-
+		// Write each optimization as a table row
+		for _, opt := range opts {
+			// Format files list - show first 3, then count if more
+			filesDisplay := ""
 			if len(opt.Files) > 0 {
-				if _, err := fmt.Fprintf(w, "\n**Files:**\n"); err != nil {
-					return err
-				}
-				for _, file := range opt.Files {
-					truncated := truncatePath(file, 80)
-					if _, err := fmt.Fprintf(w, "- `%s`\n", truncated); err != nil {
-						return err
+				maxFiles := 3
+				for i := 0; i < len(opt.Files) && i < maxFiles; i++ {
+					truncated := truncatePath(opt.Files[i], 50)
+					if i > 0 {
+						filesDisplay += ", "
 					}
+					filesDisplay += "`" + truncated + "`"
 				}
+				if len(opt.Files) > maxFiles {
+					filesDisplay += fmt.Sprintf(" and %d more", len(opt.Files)-maxFiles)
+				}
+			} else {
+				filesDisplay = "-"
 			}
 
-			if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			// Write table row
+			if _, err := fmt.Fprintf(w, "| %s | %s | %s |\n",
+				opt.Title, filesDisplay, util.FormatBytes(opt.Impact)); err != nil {
 				return err
 			}
+		}
+
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
+			return err
 		}
 	}
 
