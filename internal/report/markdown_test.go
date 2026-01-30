@@ -33,18 +33,18 @@ func TestMarkdownFormatter_Format_EmptyReport(t *testing.T) {
 	output := buf.String()
 
 	// Check header exists
-	if !strings.Contains(output, "## Bundle Analysis Report") {
+	if !strings.Contains(output, "## Bitrise Report") {
 		t.Error("Output missing header")
 	}
 
 	// Check artifact info
-	if !strings.Contains(output, "`empty.ipa`") {
+	if !strings.Contains(output, "empty.ipa") {
 		t.Error("Output missing artifact name")
 	}
 
 	// Check summary table exists
-	if !strings.Contains(output, "| Metric | Value |") {
-		t.Error("Output missing summary table")
+	if !strings.Contains(output, "| Bundle | Commit | Install Size | Download Size | Potential Savings |") {
+		t.Error("Output missing summary table header")
 	}
 }
 
@@ -62,8 +62,8 @@ func TestMarkdownFormatter_Format_CompleteReport(t *testing.T) {
 
 	// Check all major sections exist
 	expectedSections := []string{
-		"## Bundle Analysis Report",
-		"| Metric | Value |",
+		"## Bitrise Report",
+		"| Bundle | Commit | Install Size | Download Size | Potential Savings |",
 		"🔧 Strip Binary Symbols",
 		"📊 Size Breakdown by Category",
 		"📦 Top",
@@ -123,25 +123,22 @@ func TestMarkdownFormatter_writeHeader(t *testing.T) {
 	output := buf.String()
 
 	// Check key elements
-	if !strings.Contains(output, "`TestApp.ipa`") {
+	if !strings.Contains(output, "TestApp.ipa") {
 		t.Error("Missing artifact name")
 	}
-	if !strings.Contains(output, "(ipa)") {
-		t.Error("Missing artifact type")
+	if !strings.Contains(output, "## Bitrise Report") {
+		t.Error("Missing Bitrise Report header")
 	}
-	if !strings.Contains(output, "10.0 MB") {
-		t.Error("Missing artifact size")
-	}
-	if !strings.Contains(output, "| Metric | Value |") {
+	if !strings.Contains(output, "| Bundle | Commit | Install Size | Download Size | Potential Savings |") {
 		t.Error("Missing table header")
 	}
-	if !strings.Contains(output, "| **Total Files**") {
-		t.Error("Missing total files")
+	if !strings.Contains(output, "10.0 MB") {
+		t.Error("Missing size information")
 	}
-	if !strings.Contains(output, "| **Potential Savings**") {
-		t.Error("Missing potential savings")
+	if !strings.Contains(output, "**Analysis:**") {
+		t.Error("Missing analysis summary")
 	}
-	if !strings.Contains(output, "| **Optimizations Found**") {
+	if !strings.Contains(output, "2 optimizations found across 2 categories") {
 		t.Error("Missing optimization counts")
 	}
 }

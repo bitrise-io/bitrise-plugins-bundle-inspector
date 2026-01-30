@@ -76,75 +76,57 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 
 // writeHeader writes the always-visible header section
 func (f *MarkdownFormatter) writeHeader(w io.Writer, report *types.Report) error {
-	if _, err := fmt.Fprintf(w, "## Bundle Analysis Report\n\n"); err != nil {
+	if _, err := fmt.Fprintf(w, "## Bitrise Report\n\n"); err != nil {
 		return err
 	}
 
-	// Artifact info
+	// Extract artifact name
 	artifactName := report.ArtifactInfo.Path
 	if idx := strings.LastIndex(artifactName, "/"); idx >= 0 {
 		artifactName = artifactName[idx+1:]
 	}
-	if _, err := fmt.Fprintf(w, "**Artifact:** `%s` (%s)\n",
-		artifactName, report.ArtifactInfo.Type); err != nil {
-		return err
-	}
 
-	// Size info
-	uncompressedSize := calculateUncompressedSize(&report.SizeBreakdown)
-	compressionRatio := 0.0
-	if uncompressedSize > 0 {
-		compressionRatio = float64(report.ArtifactInfo.Size) / float64(uncompressedSize) * 100
-	}
-
-	if _, err := fmt.Fprintf(w, "**Size:** %s (uncompressed: %s)\n",
-		util.FormatBytes(report.ArtifactInfo.Size),
-		util.FormatBytes(uncompressedSize)); err != nil {
-		return err
-	}
-
-	if _, err := fmt.Fprintf(w, "**Compression:** %.1f%%\n\n", compressionRatio); err != nil {
-		return err
-	}
-
-	// Summary table
-	if _, err := fmt.Fprintf(w, "| Metric | Value |\n"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "|--------|-------|\n"); err != nil {
-		return err
-	}
-
-	// Total files
-	totalFiles := countFiles(report.FileTree)
-	if _, err := fmt.Fprintf(w, "| **Total Files** | %s |\n", util.FormatNumber(int64(totalFiles))); err != nil {
-		return err
-	}
-
-	// Largest category
-	largestCategory, largestSize := findLargestCategory(&report.SizeBreakdown)
-	if largestCategory != "" {
-		percentage := float64(largestSize) / float64(uncompressedSize) * 100
-		if _, err := fmt.Fprintf(w, "| **Largest Category** | %s - %s (%.1f%%) |\n",
-			largestCategory, util.FormatBytes(largestSize), percentage); err != nil {
-			return err
+	// Get commit hash from metadata if available
+	commitHash := "-"
+	if report.Metadata != nil {
+		if commit, ok := report.Metadata["commit_hash"].(string); ok && commit != "" {
+			if len(commit) > 7 {
+				commitHash = commit[:7]
+			} else {
+				commitHash = commit
+			}
 		}
 	}
 
-	// Potential savings
+	// Calculate sizes
+	uncompressedSize := calculateUncompressedSize(&report.SizeBreakdown)
+	downloadSize := report.ArtifactInfo.Size
+	installSize := uncompressedSize
+
+	// Format potential savings
 	savingsPercentage := 0.0
 	if uncompressedSize > 0 {
 		savingsPercentage = float64(report.TotalSavings) / float64(uncompressedSize) * 100
 	}
-	if _, err := fmt.Fprintf(w, "| **Potential Savings** | %s (%.1f%%) |\n",
-		util.FormatBytes(report.TotalSavings), savingsPercentage); err != nil {
+	potentialSavings := fmt.Sprintf("%s (%.1f%%)", util.FormatBytes(report.TotalSavings), savingsPercentage)
+
+	// Write horizontal summary table
+	if _, err := fmt.Fprintf(w, "| Bundle | Commit | Install Size | Download Size | Potential Savings |\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "|--------|--------|--------------|---------------|-------------------|\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |\n\n",
+		artifactName, commitHash, util.FormatBytes(installSize), util.FormatBytes(downloadSize), potentialSavings); err != nil {
 		return err
 	}
 
-	// Optimization counts by category
+	// Additional context
+	totalFiles := countFiles(report.FileTree)
 	categoryGroups := getCategoryGroups(report.Optimizations)
-	if _, err := fmt.Fprintf(w, "| **Optimizations Found** | %d issues across %d categories |\n\n",
-		len(report.Optimizations), len(categoryGroups)); err != nil {
+	if _, err := fmt.Fprintf(w, "**Analysis:** %s files analyzed, %d optimizations found across %d categories\n\n",
+		util.FormatNumber(int64(totalFiles)), len(report.Optimizations), len(categoryGroups)); err != nil {
 		return err
 	}
 
