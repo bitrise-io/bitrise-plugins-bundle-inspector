@@ -7,16 +7,22 @@ import (
 	"time"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
 // AppAnalyzer analyzes iOS .app bundles (uncompressed directories).
-type AppAnalyzer struct{}
+type AppAnalyzer struct {
+	Logger logger.Logger
+}
 
 // NewAppAnalyzer creates a new .app analyzer.
-func NewAppAnalyzer() *AppAnalyzer {
-	return &AppAnalyzer{}
+func NewAppAnalyzer(log logger.Logger) *AppAnalyzer {
+	if log == nil {
+		log = logger.NewSilentLogger()
+	}
+	return &AppAnalyzer{Logger: log}
 }
 
 // ValidateArtifact checks if the path is a valid .app bundle.
@@ -59,7 +65,7 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	// Parse asset catalogs
-	assetCatalogs := parseAssetCatalogs(fileTree, path)
+	assetCatalogs := parseAssetCatalogs(fileTree, path, a.Logger)
 
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)

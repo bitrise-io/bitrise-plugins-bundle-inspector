@@ -30,7 +30,7 @@ func New() *Orchestrator {
 // RunAnalysis performs a complete analysis of an artifact
 func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*types.Report, error) {
 	// Create analyzer
-	a, err := analyzer.NewAnalyzer(artifactPath)
+	a, err := analyzer.NewAnalyzer(artifactPath, o.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create analyzer: %w", err)
 	}

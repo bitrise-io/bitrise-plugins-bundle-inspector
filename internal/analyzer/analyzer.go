@@ -7,6 +7,7 @@ import (
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/android"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -41,7 +42,7 @@ func DetectArtifactType(path string) (types.ArtifactType, error) {
 }
 
 // NewAnalyzer creates an appropriate analyzer for the given artifact path.
-func NewAnalyzer(path string) (Analyzer, error) {
+func NewAnalyzer(path string, log logger.Logger) (Analyzer, error) {
 	artifactType, err := DetectArtifactType(path)
 	if err != nil {
 		return nil, err
@@ -49,13 +50,13 @@ func NewAnalyzer(path string) (Analyzer, error) {
 
 	switch artifactType {
 	case types.ArtifactTypeIPA:
-		return ios.NewIPAAnalyzer(), nil
+		return ios.NewIPAAnalyzer(log), nil
 	case types.ArtifactTypeAPK:
 		return android.NewAPKAnalyzer(), nil
 	case types.ArtifactTypeAAB:
 		return android.NewAABAnalyzer(), nil
 	case types.ArtifactTypeApp:
-		return ios.NewAppAnalyzer(), nil
+		return ios.NewAppAnalyzer(log), nil
 	case types.ArtifactTypeXCArchive:
 		return nil, fmt.Errorf("XCArchive analysis not yet implemented")
 	default:

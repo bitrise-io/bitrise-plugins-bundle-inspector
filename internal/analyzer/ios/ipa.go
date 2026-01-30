@@ -4,7 +4,6 @@ package ios
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,16 +12,22 @@ import (
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
 // IPAAnalyzer analyzes iOS IPA files.
-type IPAAnalyzer struct{}
+type IPAAnalyzer struct {
+	Logger logger.Logger
+}
 
 // NewIPAAnalyzer creates a new IPA analyzer.
-func NewIPAAnalyzer() *IPAAnalyzer {
-	return &IPAAnalyzer{}
+func NewIPAAnalyzer(log logger.Logger) *IPAAnalyzer {
+	if log == nil {
+		log = logger.NewSilentLogger()
+	}
+	return &IPAAnalyzer{Logger: log}
 }
 
 // ValidateArtifact checks if the file is a valid IPA.
@@ -67,7 +72,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Discover frameworks
 	frameworks, err := DiscoverFrameworks(appBundlePath)
 	if err != nil {
-		log.Printf("Warning: Failed to discover frameworks: %v", err)
+		a.Logger.Warn("Failed to discover frameworks: %v", err)
 	}
 
 	// Build dependency graph from binaries (no conversion needed - types are unified)
@@ -83,7 +88,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	// Parse asset catalogs
-	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath)
+	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath, a.Logger)
 
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
@@ -334,7 +339,6 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 			info, err := macho.ParseMachO(fullPath)
 			if err != nil {
 				// Graceful degradation: log warning, continue
-				log.Printf("Warning: Failed to parse Mach-O %s: %v", node.Path, err)
 				return
 			}
 
@@ -417,7 +421,7 @@ func isMetadataFile(name string) bool {
 }
 
 // parseAssetCatalogs scans the file tree for .car files and parses them.
-func parseAssetCatalogs(nodes []*types.FileNode, rootPath string) []*assets.AssetCatalogInfo {
+func parseAssetCatalogs(nodes []*types.FileNode, rootPath string, log logger.Logger) []*assets.AssetCatalogInfo {
 	var catalogs []*assets.AssetCatalogInfo
 
 	var walkNodes func(node *types.FileNode)
@@ -434,7 +438,7 @@ func parseAssetCatalogs(nodes []*types.FileNode, rootPath string) []*assets.Asse
 			if catalog, err := assets.ParseAssetCatalog(fullPath); err == nil {
 				catalogs = append(catalogs, catalog)
 			} else {
-				log.Printf("Warning: Failed to parse Assets.car: %s: %v", node.Path, err)
+				log.Warn("Failed to parse Assets.car %s: %v", node.Path, err)
 			}
 		}
 	}
