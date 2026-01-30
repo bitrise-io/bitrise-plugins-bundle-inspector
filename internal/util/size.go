@@ -26,3 +26,21 @@ func FormatPercentage(part, total int64) string {
 	}
 	return fmt.Sprintf("%.1f%%", float64(part)/float64(total)*100)
 }
+
+// FormatNumber formats an integer with thousand separators.
+func FormatNumber(n int64) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	}
+
+	// Convert to string and add commas
+	s := fmt.Sprintf("%d", n)
+	result := ""
+	for i, c := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			result += ","
+		}
+		result += string(c)
+	}
+	return result
+}

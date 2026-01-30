@@ -1,5 +1,5 @@
 # Binaries
-bundle-inspector
+/bundle-inspector
 *.exe
 *.dll
 *.so
