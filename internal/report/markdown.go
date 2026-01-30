@@ -24,10 +24,29 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 		return err
 	}
 
-	// Write high priority optimizations (expanded by default)
-	severityGroups := getSeverityGroups(report.Optimizations)
-	if err := f.writeOptimizations(w, severityGroups["high"], "high", "🚨", true); err != nil {
-		return err
+	// Group optimizations by category
+	categoryGroups := getCategoryGroups(report.Optimizations)
+
+	// Write optimizations by category in order
+	categories := []struct {
+		key   string
+		name  string
+		emoji string
+		open  bool
+	}{
+		{"strip-symbols", "Strip Binary Symbols", "🔧", true},
+		{"duplicates", "Duplicate Files", "🔄", false},
+		{"image-optimization", "Image Optimization", "🖼️", false},
+		{"loose-images", "Loose Images", "📸", false},
+		{"unnecessary-files", "Unnecessary Files", "🗑️", false},
+	}
+
+	for _, cat := range categories {
+		if opts, exists := categoryGroups[cat.key]; exists && len(opts) > 0 {
+			if err := f.writeOptimizations(w, opts, cat.name, cat.emoji, cat.open); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Write size breakdown
@@ -40,21 +59,11 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 		return err
 	}
 
-	// Write duplicates (only if present)
+	// Write duplicates detail (only if present)
 	if len(report.Duplicates) > 0 {
 		if err := f.writeDuplicates(w, report); err != nil {
 			return err
 		}
-	}
-
-	// Write medium priority optimizations (collapsed)
-	if err := f.writeOptimizations(w, severityGroups["medium"], "medium", "⚡", false); err != nil {
-		return err
-	}
-
-	// Write low priority optimizations (collapsed)
-	if err := f.writeOptimizations(w, severityGroups["low"], "low", "💡", false); err != nil {
-		return err
 	}
 
 	// Write by extension (only if data exists)
@@ -98,14 +107,17 @@ func (f *MarkdownFormatter) writeHeader(w io.Writer, report *types.Report) error
 		return err
 	}
 
-	// Quick summary
-	if _, err := fmt.Fprintf(w, "### Quick Summary\n"); err != nil {
+	// Summary table
+	if _, err := fmt.Fprintf(w, "| Metric | Value |\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "|--------|-------|\n"); err != nil {
 		return err
 	}
 
 	// Total files
 	totalFiles := countFiles(report.FileTree)
-	if _, err := fmt.Fprintf(w, "- **Total Files:** %s\n", util.FormatNumber(int64(totalFiles))); err != nil {
+	if _, err := fmt.Fprintf(w, "| **Total Files** | %s |\n", util.FormatNumber(int64(totalFiles))); err != nil {
 		return err
 	}
 
@@ -113,30 +125,26 @@ func (f *MarkdownFormatter) writeHeader(w io.Writer, report *types.Report) error
 	largestCategory, largestSize := findLargestCategory(&report.SizeBreakdown)
 	if largestCategory != "" {
 		percentage := float64(largestSize) / float64(uncompressedSize) * 100
-		if _, err := fmt.Fprintf(w, "- **Largest Category:** %s - %s (%.1f%%)\n",
+		if _, err := fmt.Fprintf(w, "| **Largest Category** | %s - %s (%.1f%%) |\n",
 			largestCategory, util.FormatBytes(largestSize), percentage); err != nil {
 			return err
 		}
 	}
 
 	// Potential savings
-	savingsIndicator := ""
-	if report.TotalSavings > 0 {
-		savingsIndicator = " ⚠️"
-	}
 	savingsPercentage := 0.0
 	if uncompressedSize > 0 {
 		savingsPercentage = float64(report.TotalSavings) / float64(uncompressedSize) * 100
 	}
-	if _, err := fmt.Fprintf(w, "- **Potential Savings:** %s (%.1f%%)%s\n",
-		util.FormatBytes(report.TotalSavings), savingsPercentage, savingsIndicator); err != nil {
+	if _, err := fmt.Fprintf(w, "| **Potential Savings** | %s (%.1f%%) |\n",
+		util.FormatBytes(report.TotalSavings), savingsPercentage); err != nil {
 		return err
 	}
 
-	// Optimization counts by severity
-	severityGroups := getSeverityGroups(report.Optimizations)
-	if _, err := fmt.Fprintf(w, "- **Optimization Opportunities:** %d high, %d medium, %d low priority\n\n",
-		len(severityGroups["high"]), len(severityGroups["medium"]), len(severityGroups["low"])); err != nil {
+	// Optimization counts by category
+	categoryGroups := getCategoryGroups(report.Optimizations)
+	if _, err := fmt.Fprintf(w, "| **Optimizations Found** | %d issues across %d categories |\n\n",
+		len(report.Optimizations), len(categoryGroups)); err != nil {
 		return err
 	}
 
@@ -295,15 +303,14 @@ func (f *MarkdownFormatter) writeDuplicates(w io.Writer, report *types.Report) e
 	return nil
 }
 
-// writeOptimizations writes optimization section for a specific severity
+// writeOptimizations writes optimization section for a specific category
 func (f *MarkdownFormatter) writeOptimizations(
 	w io.Writer,
 	opts []types.Optimization,
-	severity string,
+	categoryName string,
 	emoji string,
 	open bool,
 ) error {
-	severityTitle := strings.Title(severity)
 	openAttr := ""
 	if open {
 		openAttr = " open"
@@ -311,13 +318,13 @@ func (f *MarkdownFormatter) writeOptimizations(
 
 	totalSavings := calculateSavings(opts)
 
-	if _, err := fmt.Fprintf(w, "<details%s>\n<summary><strong>%s %s Priority Optimizations</strong>",
-		openAttr, emoji, severityTitle); err != nil {
+	if _, err := fmt.Fprintf(w, "<details%s>\n<summary><strong>%s %s</strong>",
+		openAttr, emoji, categoryName); err != nil {
 		return err
 	}
 
 	if len(opts) > 0 {
-		if _, err := fmt.Fprintf(w, " (Potential Savings: %s)", util.FormatBytes(totalSavings)); err != nil {
+		if _, err := fmt.Fprintf(w, " (%d issues, %s savings)", len(opts), util.FormatBytes(totalSavings)); err != nil {
 			return err
 		}
 	}
@@ -327,7 +334,7 @@ func (f *MarkdownFormatter) writeOptimizations(
 	}
 
 	if len(opts) == 0 {
-		if _, err := fmt.Fprintf(w, "✅ No %s priority issues found!\n\n", severity); err != nil {
+		if _, err := fmt.Fprintf(w, "✅ No issues found!\n\n"); err != nil {
 			return err
 		}
 	} else {
@@ -433,12 +440,11 @@ func truncatePath(path string, maxLen int) string {
 	return path[:partLen] + "/.../" + path[len(path)-partLen:]
 }
 
-// getSeverityGroups groups optimizations by severity
-func getSeverityGroups(opts []types.Optimization) map[string][]types.Optimization {
+// getCategoryGroups groups optimizations by category
+func getCategoryGroups(opts []types.Optimization) map[string][]types.Optimization {
 	groups := make(map[string][]types.Optimization)
 	for _, opt := range opts {
-		severity := strings.ToLower(opt.Severity)
-		groups[severity] = append(groups[severity], opt)
+		groups[opt.Category] = append(groups[opt.Category], opt)
 	}
 	return groups
 }

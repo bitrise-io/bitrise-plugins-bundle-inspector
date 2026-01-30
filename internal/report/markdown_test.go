@@ -42,9 +42,9 @@ func TestMarkdownFormatter_Format_EmptyReport(t *testing.T) {
 		t.Error("Output missing artifact name")
 	}
 
-	// Check no issues message appears
-	if !strings.Contains(output, "✅ No high priority issues found!") {
-		t.Error("Output missing 'no issues' message for high priority")
+	// Check summary table exists
+	if !strings.Contains(output, "| Metric | Value |") {
+		t.Error("Output missing summary table")
 	}
 }
 
@@ -63,13 +63,11 @@ func TestMarkdownFormatter_Format_CompleteReport(t *testing.T) {
 	// Check all major sections exist
 	expectedSections := []string{
 		"## Bundle Analysis Report",
-		"### Quick Summary",
-		"🚨 High Priority Optimizations",
+		"| Metric | Value |",
+		"🔧 Strip Binary Symbols",
 		"📊 Size Breakdown by Category",
 		"📦 Top",
 		"🔄 Duplicate Files Found",
-		"⚡ Medium Priority Optimizations",
-		"💡 Low Priority Optimizations",
 	}
 
 	for _, section := range expectedSections {
@@ -110,8 +108,8 @@ func TestMarkdownFormatter_writeHeader(t *testing.T) {
 			{Path: "file2.txt", IsDir: false},
 		},
 		Optimizations: []types.Optimization{
-			{Severity: "high", Impact: 1024},
-			{Severity: "medium", Impact: 512},
+			{Category: "strip-symbols", Severity: "high", Impact: 1024},
+			{Category: "duplicates", Severity: "medium", Impact: 512},
 		},
 		TotalSavings: 1536,
 	}
@@ -134,16 +132,16 @@ func TestMarkdownFormatter_writeHeader(t *testing.T) {
 	if !strings.Contains(output, "10.0 MB") {
 		t.Error("Missing artifact size")
 	}
-	if !strings.Contains(output, "Total Files") {
+	if !strings.Contains(output, "| Metric | Value |") {
+		t.Error("Missing table header")
+	}
+	if !strings.Contains(output, "| **Total Files**") {
 		t.Error("Missing total files")
 	}
-	if !strings.Contains(output, "Potential Savings") {
+	if !strings.Contains(output, "| **Potential Savings**") {
 		t.Error("Missing potential savings")
 	}
-	if !strings.Contains(output, "⚠️") {
-		t.Error("Missing warning emoji for savings")
-	}
-	if !strings.Contains(output, "1 high, 1 medium, 0 low priority") {
+	if !strings.Contains(output, "| **Optimizations Found**") {
 		t.Error("Missing optimization counts")
 	}
 }
@@ -341,21 +339,22 @@ func TestMarkdownFormatter_writeDuplicates_NoDuplicates(t *testing.T) {
 	}
 }
 
-func TestMarkdownFormatter_writeOptimizations_High(t *testing.T) {
+func TestMarkdownFormatter_writeOptimizations_Category(t *testing.T) {
 	formatter := NewMarkdownFormatter()
 	opts := []types.Optimization{
 		{
-			Title:       "Remove unused frameworks",
-			Description: "These frameworks are not used",
+			Category:    "strip-symbols",
+			Title:       "Strip debug symbols from binary",
+			Description: "Binary contains debug symbols",
 			Severity:    "high",
 			Impact:      1024 * 1024,
-			Action:      "Remove from Xcode",
-			Files:       []string{"Frameworks/Unused.framework"},
+			Action:      "Run strip -x on binary",
+			Files:       []string{"Frameworks/SDK.framework/SDK"},
 		},
 	}
 
 	var buf bytes.Buffer
-	err := formatter.writeOptimizations(&buf, opts, "high", "🚨", true)
+	err := formatter.writeOptimizations(&buf, opts, "Strip Binary Symbols", "🔧", true)
 	if err != nil {
 		t.Fatalf("writeOptimizations() failed: %v", err)
 	}
@@ -364,11 +363,16 @@ func TestMarkdownFormatter_writeOptimizations_High(t *testing.T) {
 
 	// Check section is open
 	if !strings.Contains(output, "<details open>") {
-		t.Error("High priority should be open by default")
+		t.Error("First category should be open by default")
+	}
+
+	// Check category name
+	if !strings.Contains(output, "Strip Binary Symbols") {
+		t.Error("Missing category name")
 	}
 
 	// Check optimization details
-	if !strings.Contains(output, "Remove unused frameworks") {
+	if !strings.Contains(output, "Strip debug symbols from binary") {
 		t.Error("Missing optimization title")
 	}
 	if !strings.Contains(output, "**Impact:**") {
@@ -387,7 +391,7 @@ func TestMarkdownFormatter_writeOptimizations_Empty(t *testing.T) {
 	opts := []types.Optimization{}
 
 	var buf bytes.Buffer
-	err := formatter.writeOptimizations(&buf, opts, "high", "🚨", true)
+	err := formatter.writeOptimizations(&buf, opts, "Strip Binary Symbols", "🔧", true)
 	if err != nil {
 		t.Fatalf("writeOptimizations() failed: %v", err)
 	}
@@ -395,7 +399,7 @@ func TestMarkdownFormatter_writeOptimizations_Empty(t *testing.T) {
 	output := buf.String()
 
 	// Check positive message appears
-	if !strings.Contains(output, "✅ No high priority issues found!") {
+	if !strings.Contains(output, "✅ No issues found!") {
 		t.Error("Missing positive message for empty optimizations")
 	}
 }
@@ -510,26 +514,29 @@ func TestTruncatePath(t *testing.T) {
 	}
 }
 
-func TestGetSeverityGroups(t *testing.T) {
+func TestGetCategoryGroups(t *testing.T) {
 	opts := []types.Optimization{
-		{Severity: "high", Impact: 1000},
-		{Severity: "High", Impact: 2000},
-		{Severity: "medium", Impact: 500},
-		{Severity: "MEDIUM", Impact: 600},
-		{Severity: "low", Impact: 100},
+		{Category: "strip-symbols", Impact: 1000},
+		{Category: "strip-symbols", Impact: 2000},
+		{Category: "duplicates", Impact: 500},
+		{Category: "image-optimization", Impact: 600},
+		{Category: "loose-images", Impact: 100},
 	}
 
-	groups := getSeverityGroups(opts)
+	groups := getCategoryGroups(opts)
 
-	// Check all severities present
-	if len(groups["high"]) != 2 {
-		t.Errorf("Expected 2 high severity, got %d", len(groups["high"]))
+	// Check all categories present
+	if len(groups["strip-symbols"]) != 2 {
+		t.Errorf("Expected 2 strip-symbols, got %d", len(groups["strip-symbols"]))
 	}
-	if len(groups["medium"]) != 2 {
-		t.Errorf("Expected 2 medium severity, got %d", len(groups["medium"]))
+	if len(groups["duplicates"]) != 1 {
+		t.Errorf("Expected 1 duplicates, got %d", len(groups["duplicates"]))
 	}
-	if len(groups["low"]) != 1 {
-		t.Errorf("Expected 1 low severity, got %d", len(groups["low"]))
+	if len(groups["image-optimization"]) != 1 {
+		t.Errorf("Expected 1 image-optimization, got %d", len(groups["image-optimization"]))
+	}
+	if len(groups["loose-images"]) != 1 {
+		t.Errorf("Expected 1 loose-images, got %d", len(groups["loose-images"]))
 	}
 }
 
@@ -680,21 +687,24 @@ func createTestReport() *types.Report {
 		},
 		Optimizations: []types.Optimization{
 			{
-				Title:       "Remove unused frameworks",
-				Description: "These frameworks are not used",
+				Category:    "strip-symbols",
+				Title:       "Strip debug symbols from WMF",
+				Description: "Binary contains debug symbols",
 				Severity:    "high",
 				Impact:      1800 * 1024,
-				Action:      "Remove from Xcode",
-				Files:       []string{"Frameworks/UnusedSDK.framework"},
+				Action:      "Run strip -x on binary",
+				Files:       []string{"Frameworks/WMF.framework/WMF"},
 			},
 			{
-				Title:    "Optimize images",
+				Category: "duplicates",
+				Title:    "Duplicate resource files",
 				Severity: "medium",
 				Impact:   500 * 1024,
 			},
 			{
-				Title:    "Minor optimization",
-				Severity: "low",
+				Category: "image-optimization",
+				Title:    "Optimize PNG images",
+				Severity: "medium",
 				Impact:   100 * 1024,
 			},
 		},
