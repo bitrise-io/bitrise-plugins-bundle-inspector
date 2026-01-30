@@ -35,6 +35,7 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 		open  bool
 	}{
 		{"strip-symbols", "Strip Binary Symbols", "🔧", true},
+		{"frameworks", "Unused Frameworks", "📦", true},
 		{"duplicates", "Duplicate Files", "🔄", false},
 		{"image-optimization", "Image Optimization", "🖼️", false},
 		{"loose-images", "Loose Images", "📸", false},
