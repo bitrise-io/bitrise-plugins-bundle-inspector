@@ -89,83 +89,16 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	var optimizations []types.Optimization
 
 	// Add unused framework optimizations
-	for _, fwPath := range unusedFrameworks {
-		// Find framework info to get size
-		var fwSize int64
-		var fwName string
-		for _, fw := range frameworks {
-			if strings.Contains(fwPath, fw.Name) {
-				fwSize = fw.Size
-				fwName = fw.Name
-				break
-			}
-		}
-
-		if fwName != "" {
-			optimizations = append(optimizations, types.Optimization{
-				Category:    "frameworks",
-				Severity:    "medium",
-				Title:       fmt.Sprintf("Unused framework: %s", fwName),
-				Description: "Framework is not linked by main binary or other frameworks",
-				Action:      "Remove framework to reduce app size",
-				Files:       []string{fwPath},
-				Impact:      fwSize,
-			})
-		}
-	}
+	frameworkOpts := GenerateUnusedFrameworkOptimizations(unusedFrameworks, frameworks)
+	optimizations = append(optimizations, frameworkOpts...)
 
 	// Add optimization suggestions for oversized assets
-	for _, catalog := range assetCatalogs {
-		for _, asset := range catalog.LargestAssets {
-			if asset.Size > 1*1024*1024 { // >1MB
-				optimizations = append(optimizations, types.Optimization{
-					Category:    "assets",
-					Severity:    "low",
-					Title:       fmt.Sprintf("Large asset: %s", asset.Name),
-					Description: fmt.Sprintf("Asset is %s", util.FormatBytes(asset.Size)),
-					Files:       []string{asset.Name},
-					Impact:      asset.Size,
-					Action:      "Consider compressing or resizing asset",
-				})
-			}
-		}
-	}
+	assetOpts := GenerateLargeAssetOptimizations(assetCatalogs)
+	optimizations = append(optimizations, assetOpts...)
 
-	// Convert frameworks to types.FrameworkInfo
-	typedFrameworks := make([]*types.FrameworkInfo, len(frameworks))
-	for i, fw := range frameworks {
-		binInfo := ConvertToTypesBinaryInfo(fw.BinaryInfo)
-		typedFrameworks[i] = &types.FrameworkInfo{
-			Name:         fw.Name,
-			Path:         fw.Path,
-			Version:      fw.Version,
-			Size:         fw.Size,
-			BinaryInfo:   binInfo,
-			Dependencies: fw.Dependencies,
-		}
-	}
-
-	// Convert asset catalogs to types.AssetCatalogInfo
-	typedAssetCatalogs := make([]*types.AssetCatalogInfo, len(assetCatalogs))
-	for i, catalog := range assetCatalogs {
-		largestAssets := make([]types.AssetInfo, len(catalog.LargestAssets))
-		for j, asset := range catalog.LargestAssets {
-			largestAssets[j] = types.AssetInfo{
-				Name:  asset.Name,
-				Type:  asset.Type,
-				Scale: asset.Scale,
-				Size:  asset.Size,
-			}
-		}
-		typedAssetCatalogs[i] = &types.AssetCatalogInfo{
-			Path:          catalog.Path,
-			TotalSize:     catalog.TotalSize,
-			AssetCount:    catalog.AssetCount,
-			ByType:        catalog.ByType,
-			ByScale:       catalog.ByScale,
-			LargestAssets: largestAssets,
-		}
-	}
+	// Convert frameworks and asset catalogs to types
+	typedFrameworks := ConvertFrameworksToTypes(frameworks)
+	typedAssetCatalogs := ConvertAssetCatalogsToTypes(assetCatalogs)
 
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{

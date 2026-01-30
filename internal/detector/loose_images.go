@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -171,16 +172,6 @@ func detectPatternType(images []LooseImage) string {
 	return "" // No detectable pattern
 }
 
-// calculateDiskUsageForImage returns the actual disk space used by an image file
-// iOS uses APFS with 4 KB block size, so even small files occupy a full block
-func calculateDiskUsageForImage(fileSize int64) int64 {
-	if fileSize == 0 {
-		return 0
-	}
-	// Round up to nearest block size (blockSize is defined in duplicate.go)
-	blocks := (fileSize + blockSize - 1) / blockSize
-	return blocks * blockSize
-}
 
 // calculatePatternSavings computes redundancy savings for a pattern
 // Uses disk usage (4 KB blocks) instead of file sizes for accurate savings
@@ -197,7 +188,7 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 		var maxDiskUsage int64
 
 		for _, img := range pattern.images {
-			diskUsage := calculateDiskUsageForImage(img.Size)
+			diskUsage := util.CalculateDiskUsage(img.Size)
 			totalDiskUsage += diskUsage
 			if diskUsage > maxDiskUsage {
 				maxDiskUsage = diskUsage
@@ -214,7 +205,7 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 		var maxDiskUsage int64
 
 		for _, img := range pattern.images {
-			diskUsage := calculateDiskUsageForImage(img.Size)
+			diskUsage := util.CalculateDiskUsage(img.Size)
 			totalDiskUsage += diskUsage
 			if diskUsage > maxDiskUsage {
 				maxDiskUsage = diskUsage
@@ -231,7 +222,7 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 
 // Detect runs the detector and returns pattern-based optimizations
 func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, error) {
-	mapper := NewPathMapper(rootPath)
+	mapper := util.NewPathMapper(rootPath)
 	looseImages, err := DetectLooseImages(rootPath)
 	if err != nil || len(looseImages) == 0 {
 		return nil, err

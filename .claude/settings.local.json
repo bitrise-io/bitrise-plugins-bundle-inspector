@@ -24,7 +24,10 @@
       "Bash(find:*)",
       "Bash(size -m:*)",
       "Bash(sips:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(go mod graph:*)",
+      "Bash(wc:*)",
+      "Bash(tree:*)"
     ]
   }
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -153,7 +154,7 @@ func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimizatio
 		return nil, err
 	}
 
-	mapper := NewPathMapper(rootPath)
+	mapper := util.NewPathMapper(rootPath)
 	var optimizations []types.Optimization
 
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
@@ -203,7 +204,7 @@ func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimizatio
 
 		// Build description based on format
 		description := fmt.Sprintf("%s can be converted to HEIC format for better compression. "+
-			"Measured savings: %s%s", formatName, formatBytes(savings), alphaNote)
+			"Measured savings: %s%s", formatName, util.FormatBytes(savings), alphaNote)
 
 		optimizations = append(optimizations, types.Optimization{
 			Category:    "image-optimization",
@@ -219,14 +220,4 @@ func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimizatio
 	})
 
 	return optimizations, err
-}
-
-// formatBytes formats bytes into human-readable string
-func formatBytes(bytes int64) string {
-	kb := float64(bytes) / 1024
-	if kb < 1024 {
-		return fmt.Sprintf("%.1f KB", kb)
-	}
-	mb := kb / 1024
-	return fmt.Sprintf("%.2f MB", mb)
 }

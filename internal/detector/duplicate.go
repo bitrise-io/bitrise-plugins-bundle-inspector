@@ -10,11 +10,6 @@ import (
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
-const (
-	// blockSize is the standard block size for iOS app bundles (4 KB)
-	// Files in IPAs and on iOS devices are aligned to 4 KB boundaries
-	blockSize = 4096
-)
 
 // DuplicateDetector detects duplicate files using SHA-256 hashing.
 type DuplicateDetector struct {
@@ -98,7 +93,7 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 		// Use block-aligned size for accurate space calculations
 		// iOS apps store files in 4 KB blocks, so even small files occupy a full block
 		actualSize := info.Size()
-		alignedSize := blockAlignedSize(actualSize)
+		alignedSize := util.CalculateDiskUsage(actualSize)
 
 		dup := types.DuplicateSet{
 			Hash:       hash,
@@ -165,13 +160,3 @@ func GetTotalWastedSpace(duplicates []types.DuplicateSet) int64 {
 	return total
 }
 
-// blockAlignedSize calculates the size a file occupies when aligned to block boundaries.
-// iOS apps store files in 4 KB blocks, so even small files occupy a full block.
-func blockAlignedSize(actualSize int64) int64 {
-	if actualSize == 0 {
-		return 0
-	}
-	// Round up to nearest block size
-	blocks := (actualSize + blockSize - 1) / blockSize
-	return blocks * blockSize
-}

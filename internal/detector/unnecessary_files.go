@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
-// blockSize is defined in duplicate.go (4096 - APFS block size on iOS)
 
 var unnecessaryPatterns = []string{
 	"module.modulemap", // Clang module maps (not needed in release)
@@ -72,16 +72,6 @@ func getRemovalReason(pattern string) string {
 	}
 }
 
-// calculateDiskUsage returns the actual disk space used by a file
-// iOS uses APFS with 4 KB block size, so even small files occupy a full block
-func calculateDiskUsage(fileSize int64) int64 {
-	if fileSize == 0 {
-		return 0
-	}
-	// Round up to nearest block size
-	blocks := (fileSize + blockSize - 1) / blockSize
-	return blocks * blockSize
-}
 
 // UnnecessaryFilesDetector implements the Detector interface
 type UnnecessaryFilesDetector struct{}
@@ -98,7 +88,7 @@ func (d *UnnecessaryFilesDetector) Name() string {
 
 // Detect runs the detector and returns optimizations grouped by type
 func (d *UnnecessaryFilesDetector) Detect(rootPath string) ([]types.Optimization, error) {
-	mapper := NewPathMapper(rootPath)
+	mapper := util.NewPathMapper(rootPath)
 	unnecessary, err := DetectUnnecessaryFiles(rootPath)
 	if err != nil || len(unnecessary) == 0 {
 		return nil, err
@@ -115,7 +105,7 @@ func (d *UnnecessaryFilesDetector) Detect(rootPath string) ([]types.Optimization
 		entry.files = append(entry.files, mapper.ToRelative(file.Path))
 		// Use disk usage instead of file size for accurate savings calculation
 		// iOS uses APFS with 4 KB blocks, so even a 95-byte file uses 4 KB on disk
-		entry.size += calculateDiskUsage(file.Size)
+		entry.size += util.CalculateDiskUsage(file.Size)
 		grouped[file.Reason] = entry
 	}
 
