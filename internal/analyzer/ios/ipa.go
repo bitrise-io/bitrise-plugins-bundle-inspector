@@ -83,11 +83,8 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		log.Printf("Warning: Failed to discover frameworks: %v", err)
 	}
 
-	// Convert binaries map to macho.BinaryInfo for dependency graph
-	machoBinaries := ConvertBinariesMapToMacho(binaries)
-
-	// Build dependency graph from binaries
-	depGraph := macho.BuildDependencyGraph(machoBinaries)
+	// Build dependency graph from binaries (no conversion needed - types are unified)
+	depGraph := macho.BuildDependencyGraph(binaries)
 
 	// Find main binary (typically the executable without extension at root)
 	mainBinaryPath := findMainBinary(fileTree)

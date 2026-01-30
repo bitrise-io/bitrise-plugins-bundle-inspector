@@ -3,11 +3,12 @@ package macho
 import (
 	"testing"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildDependencyGraph(t *testing.T) {
-	binaries := map[string]*BinaryInfo{
+	binaries := map[string]*types.BinaryInfo{
 		"Wikipedia": {
 			LinkedLibraries: []string{
 				"@rpath/Wikipedia.debug.dylib",

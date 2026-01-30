@@ -6,30 +6,19 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
-// BinaryInfo contains parsed Mach-O metadata
-type BinaryInfo struct {
-	Architecture     string   `json:"architecture"`
-	Architectures    []string `json:"architectures"`
-	Type             string   `json:"type"`
-	CodeSize         int64    `json:"code_size"`
-	DataSize         int64    `json:"data_size"`
-	LinkedLibraries  []string `json:"linked_libraries"`
-	RPaths           []string `json:"rpaths,omitempty"`
-	HasDebugSymbols  bool     `json:"has_debug_symbols"`
-	DebugSymbolsSize int64    `json:"debug_symbols_size,omitempty"`
-}
-
 // ParseMachO parses a Mach-O binary and extracts metadata
-func ParseMachO(path string) (*BinaryInfo, error) {
+func ParseMachO(path string) (*types.BinaryInfo, error) {
 	file, err := macho.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open Mach-O file: %w", err)
 	}
 	defer file.Close()
 
-	info := &BinaryInfo{
+	info := &types.BinaryInfo{
 		Architecture:    GetCPUTypeName(file.Cpu),
 		Architectures:   []string{GetCPUTypeName(file.Cpu)},
 		Type:            getBinaryType(file.Type),

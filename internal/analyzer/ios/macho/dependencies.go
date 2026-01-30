@@ -3,6 +3,8 @@ package macho
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
 // DependencyGraph represents the dependency relationships between binaries.
@@ -10,7 +12,7 @@ type DependencyGraph map[string][]string
 
 // BuildDependencyGraph creates a dependency map from framework information.
 // The map key is the framework/binary path, and the value is a list of dependencies.
-func BuildDependencyGraph(frameworks map[string]*BinaryInfo) DependencyGraph {
+func BuildDependencyGraph(frameworks map[string]*types.BinaryInfo) DependencyGraph {
 	graph := make(DependencyGraph)
 
 	for frameworkPath, binInfo := range frameworks {

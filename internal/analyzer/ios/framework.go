@@ -7,17 +7,18 @@ import (
 	"strings"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 	"howett.net/plist"
 )
 
 // FrameworkInfo contains metadata about a framework.
 type FrameworkInfo struct {
-	Name         string             `json:"name"`
-	Path         string             `json:"path"`
-	Version      string             `json:"version,omitempty"`
-	Size         int64              `json:"size"`
-	BinaryInfo   *macho.BinaryInfo  `json:"binary_info,omitempty"`
-	Dependencies []string           `json:"dependencies,omitempty"`
+	Name         string            `json:"name"`
+	Path         string            `json:"path"`
+	Version      string            `json:"version,omitempty"`
+	Size         int64             `json:"size"`
+	BinaryInfo   *types.BinaryInfo `json:"binary_info,omitempty"`
+	Dependencies []string          `json:"dependencies,omitempty"`
 }
 
 // DiscoverFrameworks finds all .framework directories in the app bundle.

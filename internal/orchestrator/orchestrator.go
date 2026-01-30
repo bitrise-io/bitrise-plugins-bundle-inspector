@@ -1,0 +1,185 @@
+// Package orchestrator coordinates the analysis workflow
+package orchestrator
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/detector"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
+)
+
+// Orchestrator coordinates the analysis workflow
+type Orchestrator struct {
+	IncludeDuplicates bool
+	ThresholdBytes    int64
+}
+
+// New creates a new orchestrator with default settings
+func New() *Orchestrator {
+	return &Orchestrator{
+		IncludeDuplicates: true,
+		ThresholdBytes:    1024 * 1024, // 1MB default
+	}
+}
+
+// RunAnalysis performs a complete analysis of an artifact
+func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*types.Report, error) {
+	// Create analyzer
+	a, err := analyzer.NewAnalyzer(artifactPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create analyzer: %w", err)
+	}
+
+	// Perform initial analysis
+	report, err := a.Analyze(ctx, artifactPath)
+	if err != nil {
+		return nil, fmt.Errorf("analysis failed: %w", err)
+	}
+
+	// Run duplicate detection and additional optimizations if enabled
+	if o.IncludeDuplicates {
+		if err := o.runDetectors(report, artifactPath); err != nil {
+			// Log warning but don't fail
+			fmt.Fprintf(os.Stderr, "Warning: detector execution had issues: %v\n", err)
+		}
+	}
+
+	// Generate optimization recommendations
+	report.Optimizations = o.generateOptimizations(report)
+	report.TotalSavings = calculateTotalSavings(report)
+
+	return report, nil
+}
+
+// runDetectors executes duplicate detection and additional optimization detectors
+func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) error {
+	// Extract artifact for duplicate detection
+	extractPath, shouldCleanup, err := o.extractArtifact(report.ArtifactInfo.Type, artifactPath)
+	if err != nil {
+		return fmt.Errorf("failed to extract artifact: %w", err)
+	}
+
+	if shouldCleanup {
+		defer os.RemoveAll(extractPath)
+	}
+
+	if extractPath == "" {
+		return nil // Nothing to analyze
+	}
+
+	// Run duplicate detection
+	dupDetector := detector.NewDuplicateDetector()
+	duplicates, err := dupDetector.DetectDuplicates(extractPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: duplicate detection failed: %v\n", err)
+	} else {
+		report.Duplicates = duplicates
+	}
+
+	// Run additional detectors
+	o.runAdditionalDetectors(report, extractPath)
+
+	return nil
+}
+
+// extractArtifact extracts the artifact if needed and returns the path and cleanup flag
+func (o *Orchestrator) extractArtifact(artifactType types.ArtifactType, artifactPath string) (extractPath string, shouldCleanup bool, err error) {
+	switch artifactType {
+	case types.ArtifactTypeIPA, types.ArtifactTypeAPK, types.ArtifactTypeAAB:
+		extractPath, err = util.ExtractZip(artifactPath)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to extract zip: %w", err)
+		}
+		return extractPath, true, nil
+
+	case types.ArtifactTypeApp:
+		// .app bundles are already directories, use them directly
+		return artifactPath, false, nil
+
+	default:
+		return "", false, nil
+	}
+}
+
+// runAdditionalDetectors runs all additional optimization detectors
+func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath string) {
+	detectors := []detector.Detector{
+		detector.NewImageOptimizationDetector(),
+		detector.NewLooseImagesDetector(),
+		detector.NewUnnecessaryFilesDetector(),
+	}
+
+	for _, d := range detectors {
+		opts, err := d.Detect(extractPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: %s detector failed: %v\n", d.Name(), err)
+			continue
+		}
+		report.Optimizations = append(report.Optimizations, opts...)
+	}
+}
+
+// generateOptimizations creates optimization recommendations from analysis results
+func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optimization {
+	// Start with existing optimizations (from analyzers like strip-symbols, etc.)
+	optimizations := report.Optimizations
+
+	// Add duplicate file optimizations
+	for _, dup := range report.Duplicates {
+		optimizations = append(optimizations, types.Optimization{
+			Category:    "duplicates",
+			Severity:    getSeverity(dup.WastedSize, report.ArtifactInfo.Size),
+			Title:       fmt.Sprintf("Remove %d duplicate copies of files", dup.Count-1),
+			Description: fmt.Sprintf("Found %d identical files (%s each)", dup.Count, util.FormatBytes(dup.Size)),
+			Impact:      dup.WastedSize,
+			Files:       dup.Files,
+			Action:      "Keep only one copy and deduplicate references",
+		})
+	}
+
+	// Add large file optimizations
+	for _, file := range report.LargestFiles {
+		if file.Size >= o.ThresholdBytes {
+			optimizations = append(optimizations, types.Optimization{
+				Category:    "bloat",
+				Severity:    getSeverity(file.Size, report.ArtifactInfo.Size),
+				Title:       fmt.Sprintf("Large file: %s", file.Name),
+				Description: fmt.Sprintf("File is %s, exceeds threshold of %s", util.FormatBytes(file.Size), util.FormatBytes(o.ThresholdBytes)),
+				Impact:      0, // Potential savings depends on action
+				Files:       []string{file.Path},
+				Action:      "Review if file is necessary or can be optimized",
+			})
+		}
+	}
+
+	return optimizations
+}
+
+// getSeverity determines severity based on impact relative to total size
+func getSeverity(impact, totalSize int64) string {
+	if totalSize == 0 {
+		return "low"
+	}
+
+	percentage := float64(impact) / float64(totalSize) * 100
+
+	if percentage >= 10 {
+		return "high"
+	} else if percentage >= 5 {
+		return "medium"
+	}
+	return "low"
+}
+
+// calculateTotalSavings sums up all potential savings from optimizations
+func calculateTotalSavings(report *types.Report) int64 {
+	var total int64
+	for _, opt := range report.Optimizations {
+		total += opt.Impact
+	}
+	return total
+}
