@@ -163,7 +163,10 @@ func writeReport(filename string, analysisReport *types.Report) error {
 			return fmt.Errorf("failed to format output: %w", err)
 		}
 	case "html":
-		return fmt.Errorf("HTML output not yet implemented")
+		formatter := report.NewHTMLFormatter()
+		if err := formatter.Format(f, analysisReport); err != nil {
+			return fmt.Errorf("failed to format output: %w", err)
+		}
 	default:
 		return fmt.Errorf("unsupported output format: %s", outputFormat)
 	}
