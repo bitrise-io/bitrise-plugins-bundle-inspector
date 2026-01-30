@@ -22,7 +22,8 @@
       "Bash(sort:*)",
       "Bash(xargs stat:*)",
       "Bash(find:*)",
-      "Bash(size -m:*)"
+      "Bash(size -m:*)",
+      "Bash(sips:*)"
     ]
   }
 }
