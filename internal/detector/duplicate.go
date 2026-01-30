@@ -113,6 +113,25 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 	return duplicates, nil
 }
 
+// shouldSkipFile returns true if the file should be excluded from duplicate detection.
+// Some files are legitimately duplicated by design and shouldn't be reported.
+func shouldSkipFile(path string) bool {
+	filename := filepath.Base(path)
+
+	// Exclude files that are required to be separate per framework/component
+	excludePatterns := []string{
+		"PrivacyInfo.xcprivacy", // Apple privacy manifests - required per framework by Apple
+	}
+
+	for _, pattern := range excludePatterns {
+		if filename == pattern {
+			return true
+		}
+	}
+
+	return false
+}
+
 // groupBySize groups files by their size.
 func (d *DuplicateDetector) groupBySize(rootPath string) error {
 	return filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
@@ -121,6 +140,11 @@ func (d *DuplicateDetector) groupBySize(rootPath string) error {
 		}
 
 		if info.IsDir() {
+			return nil
+		}
+
+		// Skip files that are legitimately duplicated by design
+		if shouldSkipFile(path) {
 			return nil
 		}
 
