@@ -24,20 +24,7 @@ func NewAPKAnalyzer() *APKAnalyzer {
 
 // ValidateArtifact checks if the file is a valid APK.
 func (a *APKAnalyzer) ValidateArtifact(path string) error {
-	if !strings.HasSuffix(strings.ToLower(path), ".apk") {
-		return fmt.Errorf("file must have .apk extension")
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("failed to stat file: %w", err)
-	}
-
-	if info.IsDir() {
-		return fmt.Errorf("path is a directory, not a file")
-	}
-
-	return nil
+	return util.ValidateFileArtifact(path, ".apk")
 }
 
 // Analyze performs analysis on an APK file.

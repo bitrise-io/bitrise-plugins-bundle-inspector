@@ -27,20 +27,7 @@ func NewIPAAnalyzer() *IPAAnalyzer {
 
 // ValidateArtifact checks if the file is a valid IPA.
 func (a *IPAAnalyzer) ValidateArtifact(path string) error {
-	if !strings.HasSuffix(strings.ToLower(path), ".ipa") {
-		return fmt.Errorf("file must have .ipa extension")
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("failed to stat file: %w", err)
-	}
-
-	if info.IsDir() {
-		return fmt.Errorf("path is a directory, not a file")
-	}
-
-	return nil
+	return util.ValidateFileArtifact(path, ".ipa")
 }
 
 // Analyze performs analysis on an IPA file.

@@ -3,9 +3,7 @@ package ios
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
@@ -23,20 +21,7 @@ func NewAppAnalyzer() *AppAnalyzer {
 
 // ValidateArtifact checks if the path is a valid .app bundle.
 func (a *AppAnalyzer) ValidateArtifact(path string) error {
-	if !strings.HasSuffix(strings.ToLower(path), ".app") {
-		return fmt.Errorf("path must have .app extension")
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("failed to stat path: %w", err)
-	}
-
-	if !info.IsDir() {
-		return fmt.Errorf("path must be a directory")
-	}
-
-	return nil
+	return util.ValidateDirectoryArtifact(path, ".app")
 }
 
 // Analyze performs analysis on a .app bundle directory.
