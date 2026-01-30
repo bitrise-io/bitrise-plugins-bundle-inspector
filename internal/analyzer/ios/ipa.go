@@ -35,6 +35,99 @@ func (a *IPAAnalyzer) ValidateArtifact(path string) error {
 	return util.ValidateFileArtifact(path, ".ipa")
 }
 
+// appBundleAnalysis holds the results of analyzing an app bundle
+type appBundleAnalysis struct {
+	appBundlePath    string
+	fileTree         []*types.FileNode
+	totalSize        int64
+	binaries         map[string]*types.BinaryInfo
+	frameworks       []*FrameworkInfo
+	unusedFrameworks []string
+	assetCatalogs    []*assets.AssetCatalogInfo
+	sizeBreakdown    types.SizeBreakdown
+	largestFiles     []types.FileNode
+}
+
+// extractAndFindAppBundle extracts the IPA and finds the .app bundle
+func (a *IPAAnalyzer) extractAndFindAppBundle(path string) (tempDir, appBundlePath string, err error) {
+	tempDir, err = util.ExtractZip(path)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to extract IPA: %w", err)
+	}
+
+	appBundlePath, err = findAppBundle(tempDir)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", "", err
+	}
+
+	return tempDir, appBundlePath, nil
+}
+
+// analyzeAppBundleContents performs comprehensive analysis of the app bundle
+func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundleAnalysis, error) {
+	// Analyze directory structure
+	fileTree, totalSize, err := analyzeDirectory(appBundlePath, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze app bundle: %w", err)
+	}
+
+	// Analyze binaries and frameworks
+	binaries := analyzeMachOBinaries(fileTree, appBundlePath)
+	frameworks, err := DiscoverFrameworks(appBundlePath)
+	if err != nil {
+		a.Logger.Warn("Failed to discover frameworks: %v", err)
+	}
+
+	// Analyze dependencies
+	depGraph := macho.BuildDependencyGraph(binaries)
+	mainBinaryPath := findMainBinary(fileTree)
+
+	var unusedFrameworks []string
+	if mainBinaryPath != "" && len(depGraph) > 0 {
+		unusedFrameworks = macho.DetectUnusedFrameworks(depGraph, mainBinaryPath)
+	}
+
+	// Analyze assets
+	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath, a.Logger)
+
+	return &appBundleAnalysis{
+		appBundlePath:    appBundlePath,
+		fileTree:         fileTree,
+		totalSize:        totalSize,
+		binaries:         binaries,
+		frameworks:       frameworks,
+		unusedFrameworks: unusedFrameworks,
+		assetCatalogs:    assetCatalogs,
+		sizeBreakdown:    categorizeSizes(fileTree),
+		largestFiles:     util.FindLargestFiles(fileTree, 10),
+	}, nil
+}
+
+// generateAllOptimizations creates optimization suggestions from analysis results
+func (a *IPAAnalyzer) generateAllOptimizations(analysis *appBundleAnalysis) []types.Optimization {
+	var optimizations []types.Optimization
+
+	// Symbol stripping optimizations
+	symbolOpts := generateStripSymbolsOptimizations(analysis.binaries)
+	for _, opt := range symbolOpts {
+		optimizations = append(optimizations, *opt)
+	}
+
+	// Unused framework optimizations
+	frameworkOpts := GenerateUnusedFrameworkOptimizations(
+		analysis.unusedFrameworks,
+		analysis.frameworks,
+	)
+	optimizations = append(optimizations, frameworkOpts...)
+
+	// Oversized asset optimizations
+	assetOpts := GenerateLargeAssetOptimizations(analysis.assetCatalogs)
+	optimizations = append(optimizations, assetOpts...)
+
+	return optimizations
+}
+
 // Analyze performs analysis on an IPA file.
 func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, error) {
 	if err := a.ValidateArtifact(path); err != nil {
@@ -47,94 +140,41 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		return nil, fmt.Errorf("failed to stat IPA: %w", err)
 	}
 
-	// Extract IPA
-	tempDir, err := util.ExtractZip(path)
+	// Extract and locate app bundle
+	tempDir, appBundlePath, err := a.extractAndFindAppBundle(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract IPA: %w", err)
+		return nil, err
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Find .app bundle
-	appBundlePath, err := findAppBundle(tempDir)
+	// Analyze app bundle contents
+	analysis, err := a.analyzeAppBundleContents(appBundlePath)
 	if err != nil {
 		return nil, err
 	}
 
-	// Analyze the .app bundle
-	fileTree, totalSize, err := analyzeDirectory(appBundlePath, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to analyze app bundle: %w", err)
-	}
+	// Generate optimizations
+	optimizations := a.generateAllOptimizations(analysis)
 
-	// Analyze Mach-O binaries in file tree
-	binaries := analyzeMachOBinaries(fileTree, appBundlePath)
-
-	// Discover frameworks
-	frameworks, err := DiscoverFrameworks(appBundlePath)
-	if err != nil {
-		a.Logger.Warn("Failed to discover frameworks: %v", err)
-	}
-
-	// Build dependency graph from binaries (no conversion needed - types are unified)
-	depGraph := macho.BuildDependencyGraph(binaries)
-
-	// Find main binary (typically the executable without extension at root)
-	mainBinaryPath := findMainBinary(fileTree)
-
-	// Detect unused frameworks
-	var unusedFrameworks []string
-	if mainBinaryPath != "" && len(depGraph) > 0 {
-		unusedFrameworks = macho.DetectUnusedFrameworks(depGraph, mainBinaryPath)
-	}
-
-	// Parse asset catalogs
-	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath, a.Logger)
-
-	// Create size breakdown
-	sizeBreakdown := categorizeSizes(fileTree)
-
-	// Find largest files
-	largestFiles := util.FindLargestFiles(fileTree, 10)
-
-	// Prepare optimizations list
-	var optimizations []types.Optimization
-
-	// Generate symbol stripping optimizations
-	symbolOpts := generateStripSymbolsOptimizations(binaries)
-	for _, opt := range symbolOpts {
-		optimizations = append(optimizations, *opt)
-	}
-
-	// Add unused framework optimizations
-	frameworkOpts := GenerateUnusedFrameworkOptimizations(unusedFrameworks, frameworks)
-	optimizations = append(optimizations, frameworkOpts...)
-
-	// Add optimization suggestions for oversized assets
-	assetOpts := GenerateLargeAssetOptimizations(assetCatalogs)
-	optimizations = append(optimizations, assetOpts...)
-
-	// Convert frameworks and asset catalogs to types
-	typedFrameworks := ConvertFrameworksToTypes(frameworks)
-	typedAssetCatalogs := ConvertAssetCatalogsToTypes(assetCatalogs)
-
+	// Build final report
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
 			Path:             path,
 			Type:             types.ArtifactTypeIPA,
 			Size:             info.Size(),
-			UncompressedSize: totalSize,
+			UncompressedSize: analysis.totalSize,
 			AnalyzedAt:       time.Now(),
 		},
-		SizeBreakdown:  sizeBreakdown,
-		FileTree:       fileTree,
-		LargestFiles:   largestFiles,
-		Optimizations:  optimizations,
+		SizeBreakdown: analysis.sizeBreakdown,
+		FileTree:      analysis.fileTree,
+		LargestFiles:  analysis.largestFiles,
+		Optimizations: optimizations,
 		Metadata: map[string]interface{}{
-			"app_bundle":       filepath.Base(appBundlePath),
-			"binaries":         binaries,
-			"frameworks":       typedFrameworks,
-			"dependency_graph": depGraph,
-			"asset_catalogs":   typedAssetCatalogs,
+			"app_bundle":       filepath.Base(analysis.appBundlePath),
+			"binaries":         analysis.binaries,
+			"frameworks":       ConvertFrameworksToTypes(analysis.frameworks),
+			"dependency_graph": macho.BuildDependencyGraph(analysis.binaries),
+			"asset_catalogs":   ConvertAssetCatalogsToTypes(analysis.assetCatalogs),
 		},
 	}
 

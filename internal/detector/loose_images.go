@@ -217,9 +217,54 @@ func calculatePatternSavings(pattern imagePattern) int64 {
 	}
 }
 
+// createPatternOptimization generates an optimization from a detected pattern
+func createPatternOptimization(pattern imagePattern, mapper *util.PathMapper) *types.Optimization {
+	savings := calculatePatternSavings(pattern)
+	if savings <= 0 {
+		return nil
+	}
+
+	// Collect and sort file paths
+	var files []string
+	for _, img := range pattern.images {
+		files = append(files, mapper.ToRelative(img.Path))
+	}
+	sort.Strings(files)
+
+	// Generate title and description based on pattern type
+	var title, description string
+	switch pattern.patternType {
+	case "retina-variants":
+		title = fmt.Sprintf("Consolidate %s into asset catalog", pattern.baseName)
+		description = fmt.Sprintf(
+			"Found %d retina scale variants that can be auto-generated from a single @3x image. "+
+				"Asset catalogs automatically generate @1x and @2x from @3x, eliminating manual variants.",
+			len(pattern.images))
+
+	case "multi-location":
+		title = fmt.Sprintf("Consolidate variants of %s into asset catalog", pattern.baseName)
+		description = fmt.Sprintf(
+			"Same image appears in %d locations with different sizes (likely manual resizing). "+
+				"Use asset catalogs to keep the largest version and auto-generate other sizes as needed.",
+			len(pattern.images))
+	}
+
+	return &types.Optimization{
+		Category:    "loose-images",
+		Severity:    "low",
+		Title:       title,
+		Description: description,
+		Impact:      savings,
+		Files:       files,
+		Action:      "Move images to .xcassets and enable app thinning with automatic scale generation",
+	}
+}
+
 // Detect runs the detector and returns pattern-based optimizations
 func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, error) {
 	mapper := util.NewPathMapper(rootPath)
+
+	// Detect all loose images
 	looseImages, err := DetectLooseImages(rootPath)
 	if err != nil {
 		return nil, WrapError("loose-images", "detecting loose images", err)
@@ -231,50 +276,15 @@ func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, err
 	// Detect patterns (retina variants, multi-location duplicates)
 	patterns := detectPatterns(looseImages)
 
+	// Generate optimizations from patterns
 	var optimizations []types.Optimization
-
-	// Create optimizations for detected patterns
 	for _, pattern := range patterns {
-		savings := calculatePatternSavings(pattern)
-		if savings <= 0 {
-			continue
+		if opt := createPatternOptimization(pattern, mapper); opt != nil {
+			optimizations = append(optimizations, *opt)
 		}
-
-		var files []string
-		for _, img := range pattern.images {
-			files = append(files, mapper.ToRelative(img.Path))
-		}
-
-		// Sort files for consistent output
-		sort.Strings(files)
-
-		var title, description string
-		switch pattern.patternType {
-		case "retina-variants":
-			title = fmt.Sprintf("Consolidate %s into asset catalog", pattern.baseName)
-			description = fmt.Sprintf("Found %d retina scale variants that can be auto-generated from a single @3x image. "+
-				"Asset catalogs automatically generate @1x and @2x from @3x, eliminating manual variants.",
-				len(pattern.images))
-
-		case "multi-location":
-			title = fmt.Sprintf("Consolidate variants of %s into asset catalog", pattern.baseName)
-			description = fmt.Sprintf("Same image appears in %d locations with different sizes (likely manual resizing). "+
-				"Use asset catalogs to keep the largest version and auto-generate other sizes as needed.",
-				len(pattern.images))
-		}
-
-		optimizations = append(optimizations, types.Optimization{
-			Category:    "loose-images",
-			Severity:    "low",
-			Title:       title,
-			Description: description,
-			Impact:      savings,
-			Files:       files,
-			Action:      "Move images to .xcassets and enable app thinning with automatic scale generation",
-		})
 	}
 
-	// Sort optimizations by impact (highest first)
+	// Sort by impact (highest first)
 	sort.Slice(optimizations, func(i, j int) bool {
 		return optimizations[i].Impact > optimizations[j].Impact
 	})
