@@ -260,9 +260,9 @@ func (d *LooseImagesDetector) Detect(rootPath string) ([]types.Optimization, err
 				len(pattern.images))
 
 		case "multi-location":
-			title = fmt.Sprintf("Deduplicate %s across locations", pattern.baseName)
-			description = fmt.Sprintf("Same image appears in %d locations with different sizes. "+
-				"Keep the largest version in an asset catalog and generate other sizes as needed.",
+			title = fmt.Sprintf("Consolidate variants of %s into asset catalog", pattern.baseName)
+			description = fmt.Sprintf("Same image appears in %d locations with different sizes (likely manual resizing). "+
+				"Use asset catalogs to keep the largest version and auto-generate other sizes as needed.",
 				len(pattern.images))
 		}
 
