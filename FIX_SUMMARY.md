@@ -11,16 +11,23 @@ The iOS unused frameworks detector was reporting massive false positives due to 
 
 ### After Fix - lightyear.ipa
 - **Main binary selected**: `Runner` ✅
-- **Unused frameworks reported**: 1 framework
-- **Actual savings**: 45.5 MB (App.framework)
+- **Unused frameworks reported**: 0 frameworks (App.framework correctly excluded as dynamically loaded)
+- **Actual savings**: 0 MB
 - **False positives**: 0 ✅
 
-## Root Cause
+## Root Causes
+
+### Bug #1: Wrong Main Binary Selection
 The `findMainBinary()` function selected the **first file without an extension** at the root level. In lightyear.ipa, files were ordered alphabetically:
 1. `PkgInfo` (8 bytes, metadata file)
 2. `Runner` (actual executable)
 
 Since `PkgInfo` came first and had no extension, it was incorrectly selected. However, `PkgInfo` is not a Mach-O binary and has no dependencies in the dependency graph, causing all frameworks to be flagged as unused.
+
+### Bug #2: Dynamically-Loaded Frameworks Not Excluded
+After fixing Bug #1, a second issue was discovered: **App.framework** (45.5 MB) was being flagged as unused in the Flutter app. However, App.framework contains the compiled Dart code and Flutter assets - it's the heart of the Flutter application!
+
+In Flutter apps, App.framework is loaded dynamically at runtime by Flutter.framework using `dlopen()`, so it doesn't appear in static dependency analysis performed by `otool -L`. The detector needs to recognize and exclude such frameworks.
 
 ## Solution Implemented
 
@@ -40,7 +47,34 @@ Since `PkgInfo` came first and had no extension, it was incorrectly selected. Ho
 - Check main binary exists in dependency graph
 - Return `nil` instead of false positives when validation fails
 
-### 3. Added comprehensive tests
+### 3. Added filtering for dynamically-loaded frameworks
+**File**: `internal/analyzer/ios/macho/dependencies.go:106-123`
+
+**Changes**:
+- Added `isDynamicallyLoadedFramework()` function
+- Detects Flutter apps (presence of Flutter.framework)
+- Excludes App.framework in Flutter apps from unused detection
+- Can be extended for other dynamically-loaded framework patterns
+
+**Code**:
+```go
+func isDynamicallyLoadedFramework(frameworkPath string, graph DependencyGraph) bool {
+	// Flutter apps: App.framework contains compiled Dart code and is loaded dynamically
+	// by Flutter.framework at runtime
+	if strings.Contains(frameworkPath, "App.framework/App") {
+		// Check if this is a Flutter app by looking for Flutter.framework
+		for fw := range graph {
+			if strings.Contains(fw, "Flutter.framework/Flutter") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+```
+
+### 4. Added comprehensive tests
 **File**: `internal/analyzer/ios/ipa_test.go` (new)
 
 **Tests**:
@@ -71,17 +105,18 @@ All tests pass:
 **Before**:
 - 64 frameworks flagged as unused (false positives)
 - Including Flutter.framework, Veriff.framework, Adyen.framework, etc.
+- After fixing Bug #1 (main binary selection): 1 false positive (App.framework)
 
-**After**:
+**After (both fixes)**:
 ```
-Unused frameworks: 1 framework ✅
-- App.framework (45.5 MB) - legitimately unused
+Unused frameworks: 0 frameworks ✅
+- All frameworks correctly identified as USED or dynamically loaded
 ```
 
 **Verification**:
 - Main binary correctly identified as "Runner"
 - 62 frameworks correctly identified as USED
-- Only 1 framework (App.framework) correctly identified as unused
+- App.framework correctly excluded (dynamically loaded by Flutter)
 
 #### Wikipedia.app (Regression Test)
 **Status**: ✅ No regression
@@ -93,9 +128,9 @@ Unused frameworks: 1 framework ✅
 ## Impact
 
 ### Accuracy Improvement
-- **False positive rate**: Reduced from ~100% (64/64) to 0% (0/1)
-- **Detection accuracy**: Now correctly identifies used vs. unused frameworks
-- **Reliability**: Validated with real-world artifacts
+- **False positive rate**: Reduced from ~100% (64/64) to 0% (0/0)
+- **Detection accuracy**: Now correctly identifies used vs. unused frameworks, including dynamically-loaded ones
+- **Reliability**: Validated with real-world artifacts (Flutter and non-Flutter apps)
 
 ### Benefits
 1. **Correct Analysis**: Developers now get accurate optimization suggestions
@@ -113,19 +148,27 @@ Unused frameworks: 1 framework ✅
 2. `internal/analyzer/ios/macho/dependencies.go`
    - Modified: `DetectUnusedFrameworks()` function
    - Added: Main binary validation
+   - Added: `isDynamicallyLoadedFramework()` function to exclude Flutter's App.framework
 
 ### Tests
 3. `internal/analyzer/ios/ipa_test.go` (new file)
    - Added: 15 test cases for main binary detection
 
 4. `internal/analyzer/ios/macho/dependencies_test.go`
-   - Added: 3 test cases for validation behavior
+   - Added: 6 test cases for validation and dynamically-loaded frameworks
+     - `TestDetectUnusedFrameworks_EmptyMainBinary`
+     - `TestDetectUnusedFrameworks_MainBinaryNotInGraph`
+     - `TestDetectUnusedFrameworks_MainBinaryExists`
+     - `TestDetectUnusedFrameworks_FlutterApp` (new)
+     - `TestDetectUnusedFrameworks_AppFrameworkWithoutFlutter` (new)
+     - `TestIsDynamicallyLoadedFramework` (new)
 
 ## Success Criteria - All Met ✅
 
 - ✅ `findMainBinary()` correctly identifies `Runner` in lightyear.ipa (not `PkgInfo`)
-- ✅ Lightyear.ipa reports 1 unused framework (not 64)
+- ✅ Lightyear.ipa reports 0 unused frameworks (not 64)
 - ✅ Flutter.framework, Veriff.framework, and other major dependencies NOT flagged as unused
+- ✅ App.framework (dynamically loaded) NOT flagged as unused in Flutter apps
 - ✅ Wikipedia.app still correctly detects WMF.framework as unused (no regression)
 - ✅ All unit tests pass
 - ✅ Integration tests validate real-world scenarios
@@ -143,16 +186,29 @@ Unused frameworks: 1 framework ✅
 ### Test Coverage
 - New function `findMainBinary()`: 100% coverage (7 test cases)
 - New function `isMetadataFile()`: 100% coverage (8 test cases)
-- Modified function `DetectUnusedFrameworks()`: Added 3 validation test cases
-- Overall ios/macho package: 74.3% coverage
+- Modified function `DetectUnusedFrameworks()`: Added 6 test cases
+- New function `isDynamicallyLoadedFramework()`: 100% coverage (3 test cases)
+- Overall ios/macho package: 76.5% coverage (increased)
 
 ## Conclusion
 
-The fix successfully resolves the false positive issue in iOS unused frameworks detection. The root cause (incorrect main binary selection) has been addressed with a robust solution that:
+The fix successfully resolves **two false positive issues** in iOS unused frameworks detection:
 
-1. Filters out known metadata files
+### Bug #1: Incorrect Main Binary Selection
+- Root cause: Selected `PkgInfo` instead of actual executable
+- Solution: Filter metadata files and select largest candidate
+- Result: 64 false positives → 1 false positive
+
+### Bug #2: Dynamically-Loaded Frameworks
+- Root cause: App.framework loaded at runtime by Flutter, not statically linked
+- Solution: Detect Flutter apps and exclude App.framework
+- Result: 1 false positive → 0 false positives
+
+The complete solution:
+1. Filters out known metadata files (PkgInfo, CodeResources, etc.)
 2. Selects the largest executable when multiple candidates exist
 3. Validates main binary existence before processing
-4. Returns empty results instead of false positives on validation failure
+4. Excludes dynamically-loaded frameworks (e.g., Flutter's App.framework)
+5. Returns empty results instead of false positives on validation failure
 
-The solution has been thoroughly tested with both unit tests and real-world artifacts, ensuring accuracy and preventing regressions.
+The solution has been thoroughly tested with both unit tests and real-world artifacts (Flutter and non-Flutter apps), ensuring accuracy and preventing regressions.

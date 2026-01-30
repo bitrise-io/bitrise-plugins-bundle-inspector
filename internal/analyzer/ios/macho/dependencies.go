@@ -95,11 +95,33 @@ func DetectUnusedFrameworks(graph DependencyGraph, mainBinaryPath string) []stri
 			continue
 		}
 
+		// Skip dynamically-loaded frameworks
+		if isDynamicallyLoadedFramework(frameworkPath, graph) {
+			continue
+		}
+
 		// This framework is not referenced
 		unused = append(unused, frameworkPath)
 	}
 
 	return unused
+}
+
+// isDynamicallyLoadedFramework checks if a framework is known to be loaded dynamically
+// at runtime (e.g., via dlopen) and thus won't appear in static dependency analysis.
+func isDynamicallyLoadedFramework(frameworkPath string, graph DependencyGraph) bool {
+	// Flutter apps: App.framework contains compiled Dart code and is loaded dynamically
+	// by Flutter.framework at runtime
+	if strings.Contains(frameworkPath, "App.framework/App") {
+		// Check if this is a Flutter app by looking for Flutter.framework
+		for fw := range graph {
+			if strings.Contains(fw, "Flutter.framework/Flutter") {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // ResolveDependencyPath converts @rpath and other special path references to actual paths.

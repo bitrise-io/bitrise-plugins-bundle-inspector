@@ -198,3 +198,82 @@ func TestDetectUnusedFrameworks_MainBinaryExists(t *testing.T) {
 	assert.Contains(t, unused, "Frameworks/B.framework/B")
 	assert.NotContains(t, unused, "Frameworks/A.framework/A")
 }
+
+func TestDetectUnusedFrameworks_FlutterApp(t *testing.T) {
+	// Flutter app with App.framework that's dynamically loaded
+	graph := DependencyGraph{
+		"Runner": []string{
+			"Frameworks/Flutter.framework/Flutter",
+		},
+		"Frameworks/Flutter.framework/Flutter": []string{},
+		"Frameworks/App.framework/App":         []string{},
+		"Frameworks/Unused.framework/Unused":   []string{},
+	}
+
+	unused := DetectUnusedFrameworks(graph, "Runner")
+
+	// App.framework should NOT be in unused list (dynamically loaded by Flutter)
+	assert.NotContains(t, unused, "Frameworks/App.framework/App",
+		"App.framework should not be flagged as unused in Flutter apps")
+
+	// But genuinely unused frameworks should still be detected
+	assert.Contains(t, unused, "Frameworks/Unused.framework/Unused")
+	assert.Len(t, unused, 1)
+}
+
+func TestDetectUnusedFrameworks_AppFrameworkWithoutFlutter(t *testing.T) {
+	// App.framework in a non-Flutter app should be flagged if unused
+	graph := DependencyGraph{
+		"MainApp": []string{
+			"Frameworks/SomeOther.framework/SomeOther",
+		},
+		"Frameworks/SomeOther.framework/SomeOther": []string{},
+		"Frameworks/App.framework/App":             []string{},
+	}
+
+	unused := DetectUnusedFrameworks(graph, "MainApp")
+
+	// Without Flutter.framework present, App.framework CAN be flagged as unused
+	assert.Contains(t, unused, "Frameworks/App.framework/App")
+}
+
+func TestIsDynamicallyLoadedFramework(t *testing.T) {
+	tests := []struct {
+		name          string
+		frameworkPath string
+		graph         DependencyGraph
+		want          bool
+	}{
+		{
+			name:          "App.framework in Flutter app",
+			frameworkPath: "Frameworks/App.framework/App",
+			graph: DependencyGraph{
+				"Frameworks/Flutter.framework/Flutter": []string{},
+			},
+			want: true,
+		},
+		{
+			name:          "App.framework without Flutter",
+			frameworkPath: "Frameworks/App.framework/App",
+			graph: DependencyGraph{
+				"Frameworks/Other.framework/Other": []string{},
+			},
+			want: false,
+		},
+		{
+			name:          "Other framework in Flutter app",
+			frameworkPath: "Frameworks/Other.framework/Other",
+			graph: DependencyGraph{
+				"Frameworks/Flutter.framework/Flutter": []string{},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isDynamicallyLoadedFramework(tt.frameworkPath, tt.graph)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
