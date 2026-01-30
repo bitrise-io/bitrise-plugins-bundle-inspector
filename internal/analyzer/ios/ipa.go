@@ -240,7 +240,7 @@ func categorizeSizes(nodes []*types.FileNode) types.SizeBreakdown {
 			}
 		} else {
 			// Categorize by file
-			ext := strings.ToLower(filepath.Ext(node.Name))
+			ext := util.GetLowerExtension(node.Name)
 			baseName := strings.ToLower(node.Name)
 
 			// Update extension stats
@@ -331,22 +331,24 @@ func analyzeMachOBinaries(nodes []*types.FileNode, rootPath string) map[string]*
 				return
 			}
 
-			if info, err := macho.ParseMachO(fullPath); err == nil {
-				// Convert internal BinaryInfo to types.BinaryInfo
-				binaries[node.Path] = &types.BinaryInfo{
-					Architecture:     info.Architecture,
-					Architectures:    info.Architectures,
-					Type:             info.Type,
-					CodeSize:         info.CodeSize,
-					DataSize:         info.DataSize,
-					LinkedLibraries:  info.LinkedLibraries,
-					RPaths:           info.RPaths,
-					HasDebugSymbols:  info.HasDebugSymbols,
-					DebugSymbolsSize: info.DebugSymbolsSize,
-				}
-			} else {
+			info, err := macho.ParseMachO(fullPath)
+			if err != nil {
 				// Graceful degradation: log warning, continue
-				log.Printf("Warning: Failed to parse Mach-O: %s: %v", node.Path, err)
+				log.Printf("Warning: Failed to parse Mach-O %s: %v", node.Path, err)
+				return
+			}
+
+			// Convert internal BinaryInfo to types.BinaryInfo
+			binaries[node.Path] = &types.BinaryInfo{
+				Architecture:     info.Architecture,
+				Architectures:    info.Architectures,
+				Type:             info.Type,
+				CodeSize:         info.CodeSize,
+				DataSize:         info.DataSize,
+				LinkedLibraries:  info.LinkedLibraries,
+				RPaths:           info.RPaths,
+				HasDebugSymbols:  info.HasDebugSymbols,
+				DebugSymbolsSize: info.DebugSymbolsSize,
 			}
 		}
 	}

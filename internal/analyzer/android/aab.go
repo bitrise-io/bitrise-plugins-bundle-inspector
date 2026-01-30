@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -129,7 +128,7 @@ func categorizeAABSizes(nodes []*types.FileNode) types.SizeBreakdown {
 				}
 			}
 		} else {
-			ext := strings.ToLower(filepath.Ext(node.Name))
+			ext := util.GetLowerExtension(node.Name)
 			baseName := strings.ToLower(node.Name)
 
 			// Update extension stats

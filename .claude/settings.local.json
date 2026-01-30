@@ -27,7 +27,10 @@
       "Bash(unzip:*)",
       "Bash(go mod graph:*)",
       "Bash(wc:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(python3:*)"
     ]
   }
 }

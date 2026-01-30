@@ -4,11 +4,10 @@ package analyzer
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/android"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -23,7 +22,7 @@ type Analyzer interface {
 
 // DetectArtifactType determines the artifact type from file extension.
 func DetectArtifactType(path string) (types.ArtifactType, error) {
-	ext := strings.ToLower(filepath.Ext(path))
+	ext := util.GetLowerExtension(path)
 
 	switch ext {
 	case ".ipa":

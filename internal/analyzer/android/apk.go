@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -86,7 +85,7 @@ func parseManifest(apkPath string) (map[string]interface{}, error) {
 	// Open APK file
 	zipFile, err := zip.OpenReader(apkPath)
 	if err != nil {
-		return manifest, err
+		return manifest, fmt.Errorf("failed to open APK file: %w", err)
 	}
 	defer zipFile.Close()
 
@@ -134,7 +133,7 @@ func categorizeAPKSizes(nodes []*types.FileNode) types.SizeBreakdown {
 				}
 			}
 		} else {
-			ext := strings.ToLower(filepath.Ext(node.Name))
+			ext := util.GetLowerExtension(node.Name)
 			baseName := strings.ToLower(node.Name)
 
 			// Update extension stats

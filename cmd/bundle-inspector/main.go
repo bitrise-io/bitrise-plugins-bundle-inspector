@@ -73,10 +73,14 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 
 	// Add flags
-	analyzeCmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json, markdown, html)")
-	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "", "Override default output filename (default: bundle-analysis-<artifact>.<format>)")
-	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true, "Enable duplicate file detection")
-	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false, "Disable auto-detection of bundle path from Bitrise environment")
+	analyzeCmd.Flags().StringVarP(&outputFormat, "output", "o", "text",
+		"Output format (text, json, markdown, html)")
+	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "",
+		"Override default output filename (default: bundle-analysis-<artifact>.<format>)")
+	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true,
+		"Enable duplicate file detection")
+	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false,
+		"Disable auto-detection of bundle path from Bitrise environment")
 }
 
 func runAnalyze(cmd *cobra.Command, args []string) error {
@@ -90,7 +94,9 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		// Try auto-detection from Bitrise environment
 		detectedPath, err := bitrise.DetectBundlePath()
 		if err != nil {
-			return fmt.Errorf("no artifact path provided and auto-detection failed: %w\n\nUsage: bundle-inspector analyze <file-path>", err)
+			return fmt.Errorf(
+				"no artifact path provided and auto-detection failed: %w\n\n"+
+					"Usage: bundle-inspector analyze <file-path>", err)
 		}
 		artifactPath = detectedPath
 		fmt.Fprintf(os.Stderr, "Auto-detected artifact from Bitrise environment: %s\n", artifactPath)

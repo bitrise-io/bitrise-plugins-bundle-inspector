@@ -79,3 +79,52 @@ func TestPathMapperToRelativePaths(t *testing.T) {
 		}
 	}
 }
+
+func TestGetLowerExtension(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"PNG uppercase", "/path/to/FILE.PNG", ".png"},
+		{"png lowercase", "/path/to/file.png", ".png"},
+		{"Mixed case", "/path/to/Image.JpG", ".jpg"},
+		{"No extension", "/path/to/file", ""},
+		{"Dot file", "/path/to/.gitignore", ".gitignore"},
+		{"Multiple dots", "/path/to/file.tar.gz", ".gz"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetLowerExtension(tt.path)
+			if got != tt.want {
+				t.Errorf("GetLowerExtension() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHasExtension(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		exts []string
+		want bool
+	}{
+		{"Match single PNG", "/path/to/image.PNG", []string{".png"}, true},
+		{"Match multiple exts", "/path/to/image.JPG", []string{".png", ".jpg", ".jpeg"}, true},
+		{"No match", "/path/to/image.gif", []string{".png", ".jpg"}, false},
+		{"Empty extensions", "/path/to/image.png", []string{}, false},
+		{"No extension on file", "/path/to/README", []string{".md"}, false},
+		{"Case insensitive", "/path/to/FILE.PNG", []string{".png"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HasExtension(tt.path, tt.exts...)
+			if got != tt.want {
+				t.Errorf("HasExtension() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

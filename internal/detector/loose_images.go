@@ -41,9 +41,7 @@ func DetectLooseImages(rootPath string) ([]LooseImage, error) {
 			return err
 		}
 
-		ext := strings.ToLower(filepath.Ext(path))
-		isImage := ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-			ext == ".gif" || ext == ".webp"
+		isImage := util.HasExtension(path, ".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 		if !isImage {
 			return nil
@@ -171,7 +169,6 @@ func detectPatternType(images []LooseImage) string {
 
 	return "" // No detectable pattern
 }
-
 
 // calculatePatternSavings computes redundancy savings for a pattern
 // Uses disk usage (4 KB blocks) instead of file sizes for accurate savings

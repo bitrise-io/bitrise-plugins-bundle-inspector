@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
-
 
 var unnecessaryPatterns = []string{
 	"module.modulemap", // Clang module maps (not needed in release)
@@ -39,7 +37,7 @@ func DetectUnnecessaryFiles(rootPath string) ([]UnnecessaryFile, error) {
 		}
 
 		filename := filepath.Base(path)
-		ext := strings.ToLower(filepath.Ext(path))
+		ext := util.GetLowerExtension(path)
 
 		for _, pattern := range unnecessaryPatterns {
 			if pattern == filename || pattern == ext {

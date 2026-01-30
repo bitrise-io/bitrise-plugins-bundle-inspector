@@ -1,6 +1,9 @@
 package util
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // PathMapper helps convert absolute paths to relative paths
 type PathMapper struct {
@@ -25,4 +28,21 @@ func (m *PathMapper) ToRelativePaths(absolutePaths []string) []string {
 		result[i] = m.ToRelative(path)
 	}
 	return result
+}
+
+// GetLowerExtension returns the lowercase file extension (e.g., ".png")
+func GetLowerExtension(path string) string {
+	return strings.ToLower(filepath.Ext(path))
+}
+
+// HasExtension checks if a file has one of the specified extensions.
+// Extensions should be provided in lowercase (e.g., ".png", ".jpg").
+func HasExtension(path string, exts ...string) bool {
+	ext := GetLowerExtension(path)
+	for _, e := range exts {
+		if ext == e {
+			return true
+		}
+	}
+	return false
 }

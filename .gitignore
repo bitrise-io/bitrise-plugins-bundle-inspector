@@ -55,3 +55,10 @@ report.txt
 **/PHASE*_COMPLETE.md
 IMPLEMENTATION_SUMMARY.md
 INTEGRATION_TEST_REPORT.md
+
+# Analysis output files
+bundle-analysis-*.md
+bundle-analysis-*.json
+wikipedia-analysis.*
+*-analysis.md
+*-analysis.json

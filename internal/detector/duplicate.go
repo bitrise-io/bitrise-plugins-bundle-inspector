@@ -10,7 +10,6 @@ import (
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
-
 // DuplicateDetector detects duplicate files using SHA-256 hashing.
 type DuplicateDetector struct {
 	// Map of size -> list of file paths
