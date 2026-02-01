@@ -123,6 +123,12 @@ func shouldSkipFile(path string) bool {
 		}
 	}
 
+	// Exclude .car files - they're expanded as virtual directories with asset-level
+	// duplicate detection, so reporting the .car file itself as duplicate is confusing
+	if filepath.Ext(filename) == ".car" {
+		return true
+	}
+
 	return false
 }
 
