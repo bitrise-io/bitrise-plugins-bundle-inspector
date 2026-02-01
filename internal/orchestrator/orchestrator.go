@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/detector"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
@@ -72,13 +73,19 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 		return nil // Nothing to analyze
 	}
 
-	// Run duplicate detection
+	// Run duplicate detection for files
 	dupDetector := detector.NewDuplicateDetector()
 	duplicates, err := dupDetector.DetectDuplicates(extractPath)
 	if err != nil {
 		o.Logger.Warn("duplicate detection failed: %v", err)
 	} else {
 		report.Duplicates = duplicates
+	}
+
+	// Run asset duplicate detection for .car files
+	assetDuplicates := o.detectAssetDuplicates(report)
+	if len(assetDuplicates) > 0 {
+		report.Duplicates = append(report.Duplicates, assetDuplicates...)
 	}
 
 	// Run additional detectors
@@ -168,4 +175,66 @@ func calculateTotalSavings(report *types.Report) int64 {
 		total += opt.Impact
 	}
 	return total
+}
+
+// detectAssetDuplicates extracts asset catalogs from report metadata and detects duplicates.
+func (o *Orchestrator) detectAssetDuplicates(report *types.Report) []types.DuplicateSet {
+	if report.Metadata == nil {
+		return nil
+	}
+
+	// Extract asset catalogs from metadata
+	catalogsInterface, ok := report.Metadata["asset_catalogs"]
+	if !ok {
+		return nil
+	}
+
+	// Convert to internal asset catalog type
+	var internalCatalogs []*assets.AssetCatalogInfo
+
+	switch catalogs := catalogsInterface.(type) {
+	case []*types.AssetCatalogInfo:
+		// Convert types.AssetCatalogInfo to assets.AssetCatalogInfo
+		for _, tc := range catalogs {
+			if tc == nil {
+				continue
+			}
+			ic := &assets.AssetCatalogInfo{
+				Path:       tc.Path,
+				TotalSize:  tc.TotalSize,
+				AssetCount: tc.AssetCount,
+				ByType:     tc.ByType,
+				ByScale:    tc.ByScale,
+			}
+			// Convert assets
+			for _, ta := range tc.Assets {
+				ic.Assets = append(ic.Assets, assets.AssetInfo{
+					Name:          ta.Name,
+					RenditionName: ta.RenditionName,
+					Type:          ta.Type,
+					Scale:         ta.Scale,
+					Size:          ta.Size,
+					Idiom:         ta.Idiom,
+					Compression:   ta.Compression,
+					PixelWidth:    ta.PixelWidth,
+					PixelHeight:   ta.PixelHeight,
+					SHA1Digest:    ta.SHA1Digest,
+				})
+			}
+			internalCatalogs = append(internalCatalogs, ic)
+		}
+	case []*assets.AssetCatalogInfo:
+		internalCatalogs = catalogs
+	default:
+		o.Logger.Warn("asset_catalogs metadata has unexpected type: %T", catalogsInterface)
+		return nil
+	}
+
+	if len(internalCatalogs) == 0 {
+		return nil
+	}
+
+	// Run asset duplicate detection
+	assetDupDetector := detector.NewAssetDuplicateDetector()
+	return assetDupDetector.DetectAssetDuplicates(internalCatalogs)
 }

@@ -4,7 +4,6 @@ go 1.24.3
 
 require (
 	github.com/blacktop/lzfse-cgo v1.1.20
-	github.com/iineva/bom v1.0.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.11.1
 	howett.net/plist v1.0.1

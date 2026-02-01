@@ -485,6 +485,7 @@ func isMetadataFile(name string) bool {
 }
 
 // parseAssetCatalogs scans the file tree for .car files and parses them.
+// It also expands assets as virtual children in the file tree.
 func parseAssetCatalogs(nodes []*types.FileNode, rootPath string, log logger.Logger) []*assets.AssetCatalogInfo {
 	var catalogs []*assets.AssetCatalogInfo
 
@@ -499,11 +500,22 @@ func parseAssetCatalogs(nodes []*types.FileNode, rootPath string, log logger.Log
 
 		if strings.HasSuffix(strings.ToLower(node.Name), ".car") {
 			fullPath := filepath.Join(rootPath, node.Path)
-			if catalog, err := assets.ParseAssetCatalog(fullPath); err == nil {
-				catalogs = append(catalogs, catalog)
-			} else {
+			catalog, err := assets.ParseAssetCatalog(fullPath)
+			if err != nil {
 				log.Warn("Failed to parse Assets.car %s: %v", node.Path, err)
+				return
 			}
+
+			// Store the full relative path for proper virtual path generation
+			catalog.Path = node.Path
+
+			// Expand assets as virtual children of the .car file node
+			virtualChildren := assets.ExpandAssetsAsChildren(catalog, node.Path)
+			if len(virtualChildren) > 0 {
+				node.Children = virtualChildren
+			}
+
+			catalogs = append(catalogs, catalog)
 		}
 	}
 

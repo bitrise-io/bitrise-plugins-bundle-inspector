@@ -38,11 +38,13 @@ type SizeBreakdown struct {
 
 // FileNode represents a file or directory in the artifact tree.
 type FileNode struct {
-	Path     string      `json:"path"`
-	Name     string      `json:"name"`
-	Size     int64       `json:"size"`
-	IsDir    bool        `json:"is_dir"`
-	Children []*FileNode `json:"children,omitempty"`
+	Path       string      `json:"path"`
+	Name       string      `json:"name"`
+	Size       int64       `json:"size"`
+	IsDir      bool        `json:"is_dir"`
+	Children   []*FileNode `json:"children,omitempty"`
+	IsVirtual  bool        `json:"is_virtual,omitempty"`  // True for assets expanded from .car files
+	SourceFile string      `json:"source_file,omitempty"` // Parent .car file path for virtual nodes
 }
 
 // DuplicateSet represents a group of duplicate files.
@@ -108,12 +110,19 @@ type AssetCatalogInfo struct {
 	ByType        map[string]int64  `json:"by_type"`
 	ByScale       map[string]int64  `json:"by_scale"`
 	LargestAssets []AssetInfo       `json:"largest_assets,omitempty"`
+	Assets        []AssetInfo       `json:"assets,omitempty"` // All assets in the catalog
 }
 
 // AssetInfo contains metadata about a single asset.
 type AssetInfo struct {
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	Scale string `json:"scale,omitempty"`
-	Size  int64  `json:"size"`
+	Name          string `json:"name"`
+	RenditionName string `json:"rendition_name,omitempty"`
+	Type          string `json:"type"`
+	Scale         string `json:"scale,omitempty"`
+	Size          int64  `json:"size"`
+	Idiom         string `json:"idiom,omitempty"`
+	Compression   string `json:"compression,omitempty"`
+	PixelWidth    int    `json:"pixel_width,omitempty"`
+	PixelHeight   int    `json:"pixel_height,omitempty"`
+	SHA1Digest    string `json:"sha1_digest,omitempty"`
 }

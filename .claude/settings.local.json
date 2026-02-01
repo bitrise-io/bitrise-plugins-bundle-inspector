@@ -30,7 +30,14 @@
       "Bash(tree:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git -C /Users/birmacher/development/bundle-inspector log --oneline -20)",
+      "Bash(git -C /Users/birmacher/development/bundle-inspector show --stat ad992b1)",
+      "Bash(git -C /Users/birmacher/development/bundle-inspector log --all --oneline --grep=\"virtual\\\\|nested\\\\|car\\\\|asset\")",
+      "Bash(git -C /Users/birmacher/development/bundle-inspector status)",
+      "Bash(assetutil:*)",
+      "WebFetch(domain:docs.emergetools.com)",
+      "Bash(go run:*)"
     ]
   }
 }
