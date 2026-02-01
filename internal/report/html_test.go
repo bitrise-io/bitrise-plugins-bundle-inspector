@@ -204,7 +204,7 @@ func TestPrepareTreemapData(t *testing.T) {
 		},
 	}
 
-	result := formatter.prepareTreemapData(nodes, 10.0)
+	result := formatter.prepareTreemapData(nodes)
 
 	// Verify result is a map
 	resultMap, ok := result.(map[string]interface{})

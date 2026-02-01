@@ -349,6 +349,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
         .insight-files-content {
             padding: 20px;
+            background: var(--bg-secondary);
         }
 
         .insight-files-header {
@@ -400,6 +401,9 @@ const htmlTemplate = `<!DOCTYPE html>
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border-radius: 8px;
             flex-wrap: wrap;
             gap: 8px;
         }
@@ -418,7 +422,7 @@ const htmlTemplate = `<!DOCTYPE html>
         .duplicate-meta {
             font-size: 12px;
             color: var(--text-secondary);
-            background: var(--bg-secondary);
+            background: var(--border-color);
             padding: 4px 10px;
             border-radius: 12px;
             white-space: nowrap;
@@ -555,6 +559,10 @@ const htmlTemplate = `<!DOCTYPE html>
                 </div>
                 <div id="treemap"></div>
                 <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e74c3c;"></div>
+                        <span>Duplicates</span>
+                    </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: #5470c6;"></div>
                         <span>Frameworks</span>
@@ -747,17 +755,27 @@ const htmlTemplate = `<!DOCTYPE html>
             'ui': '#fc8452',
             'dex': '#9a60b4',
             'font': '#ee6666',
-            'other': '#999999'
+            'other': '#999999',
+            'duplicate': '#e74c3c'
         };
+
+        // Create a Set of duplicate file paths for fast lookup
+        const duplicatePaths = new Set(reportData.duplicates || []);
 
         // Get color for file type
         function getColorForFileType(fileType) {
             return fileTypeColors[fileType] || fileTypeColors['other'];
         }
 
-        // Apply colors to tree nodes
+        // Apply colors to tree nodes (duplicates are colored red)
         function applyColorsToTree(node) {
-            if (node.fileType) {
+            // Check if this node is a duplicate file
+            if (node.path && duplicatePaths.has(node.path)) {
+                node.itemStyle = {
+                    color: fileTypeColors['duplicate']
+                };
+                node.isDuplicate = true;
+            } else if (node.fileType) {
                 node.itemStyle = {
                     color: getColorForFileType(node.fileType)
                 };
@@ -789,6 +807,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         const value = info.value;
                         const name = info.name;
                         const path = info.data.path || name;
+                        const isDuplicate = info.data.isDuplicate || false;
                         const treePathInfo = info.treePathInfo || [];
                         let percentage = '0.0';
 
@@ -799,10 +818,16 @@ const htmlTemplate = `<!DOCTYPE html>
                             }
                         }
 
-                        return '<strong>' + name + '</strong><br/>' +
+                        let result = '<strong>' + name + '</strong><br/>' +
                                'Path: ' + path + '<br/>' +
                                'Size: ' + formatBytes(value) + '<br/>' +
                                percentage + '%% of total';
+
+                        if (isDuplicate) {
+                            result += '<br/><span style="color: #e74c3c; font-weight: bold;">⚠ Duplicate file</span>';
+                        }
+
+                        return result;
                     }
                 },
                 series: [{

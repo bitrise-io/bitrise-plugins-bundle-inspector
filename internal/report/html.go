@@ -111,11 +111,12 @@ func (f *HTMLFormatter) prepareTemplateData(report *types.Report) templateData {
 
 // jsData holds the data structure passed to JavaScript
 type jsData struct {
-	FileTree   interface{}              `json:"fileTree"`
-	Categories []categoryData           `json:"categories"`
-	Extensions []extensionData          `json:"extensions"`
+	FileTree      interface{}           `json:"fileTree"`
+	Categories    []categoryData        `json:"categories"`
+	Extensions    []extensionData       `json:"extensions"`
 	Optimizations []optimizationData    `json:"optimizations"`
-	Metadata   map[string]interface{}   `json:"metadata"`
+	Duplicates    []string              `json:"duplicates"`
+	Metadata      map[string]interface{} `json:"metadata"`
 }
 
 type categoryData struct {
@@ -140,20 +141,46 @@ type optimizationData struct {
 
 // prepareJSData converts report data to JavaScript-friendly format
 func (f *HTMLFormatter) prepareJSData(report *types.Report) jsData {
-	total := calculateUncompressedSize(&report.SizeBreakdown)
-	threshold := float64(total) * 0.001 // 0.1% threshold for aggregation
-
 	return jsData{
-		FileTree:      f.prepareTreemapData(report.FileTree, threshold),
+		FileTree:      f.prepareTreemapData(report.FileTree),
 		Categories:    f.prepareCategoryData(&report.SizeBreakdown),
 		Extensions:    f.prepareExtensionData(&report.SizeBreakdown),
 		Optimizations: f.prepareOptimizationData(report.Optimizations),
+		Duplicates:    f.extractDuplicatePaths(report.Duplicates, report.ArtifactInfo.Path),
 		Metadata:      report.Metadata,
 	}
 }
 
+// extractDuplicatePaths collects all file paths that are duplicates
+// It strips the artifact path prefix to match the file tree paths
+func (f *HTMLFormatter) extractDuplicatePaths(duplicates []types.DuplicateSet, artifactPath string) []string {
+	// Normalize artifact path for prefix stripping
+	prefix := artifactPath
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+
+	pathSet := make(map[string]struct{})
+	for _, dup := range duplicates {
+		for _, file := range dup.Files {
+			// Strip artifact path prefix if present
+			relativePath := file
+			if strings.HasPrefix(file, prefix) {
+				relativePath = file[len(prefix):]
+			}
+			pathSet[relativePath] = struct{}{}
+		}
+	}
+
+	paths := make([]string, 0, len(pathSet))
+	for path := range pathSet {
+		paths = append(paths, path)
+	}
+	return paths
+}
+
 // prepareTreemapData converts FileNode tree to ECharts-compatible format
-func (f *HTMLFormatter) prepareTreemapData(nodes []*types.FileNode, threshold float64) interface{} {
+func (f *HTMLFormatter) prepareTreemapData(nodes []*types.FileNode) interface{} {
 	if len(nodes) == 0 {
 		return map[string]interface{}{
 			"name":  "root",
@@ -163,7 +190,7 @@ func (f *HTMLFormatter) prepareTreemapData(nodes []*types.FileNode, threshold fl
 
 	// If single root, use it; otherwise create a wrapper root
 	if len(nodes) == 1 {
-		return f.convertNodeToMap(nodes[0], threshold, 0)
+		return f.convertNodeToMap(nodes[0], 0)
 	}
 
 	// Multiple roots - create wrapper
@@ -171,7 +198,7 @@ func (f *HTMLFormatter) prepareTreemapData(nodes []*types.FileNode, threshold fl
 	children := make([]interface{}, 0, len(nodes))
 	for _, node := range nodes {
 		totalSize += node.Size
-		children = append(children, f.convertNodeToMap(node, threshold, 0))
+		children = append(children, f.convertNodeToMap(node, 0))
 	}
 
 	return map[string]interface{}{
@@ -183,7 +210,7 @@ func (f *HTMLFormatter) prepareTreemapData(nodes []*types.FileNode, threshold fl
 }
 
 // convertNodeToMap recursively converts a FileNode to a map for ECharts
-func (f *HTMLFormatter) convertNodeToMap(node *types.FileNode, threshold float64, depth int) map[string]interface{} {
+func (f *HTMLFormatter) convertNodeToMap(node *types.FileNode, depth int) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":  node.Name,
 		"value": node.Size,
@@ -195,36 +222,12 @@ func (f *HTMLFormatter) convertNodeToMap(node *types.FileNode, threshold float64
 		result["fileType"] = f.getFileType(node.Name)
 	}
 
-	// Limit depth to 5 levels
-	if depth >= 5 {
-		return result
-	}
-
 	// Process children
 	if len(node.Children) > 0 {
 		children := make([]interface{}, 0, len(node.Children))
-		var smallFilesSize int64
-		var smallFilesCount int
 
 		for _, child := range node.Children {
-			// Aggregate very small files
-			if float64(child.Size) < threshold {
-				smallFilesSize += child.Size
-				smallFilesCount++
-				continue
-			}
-
-			children = append(children, f.convertNodeToMap(child, threshold, depth+1))
-		}
-
-		// Add aggregated small files node if any
-		if smallFilesCount > 0 {
-			children = append(children, map[string]interface{}{
-				"name":     fmt.Sprintf("Small Files (%d)", smallFilesCount),
-				"value":    smallFilesSize,
-				"path":     node.Path + "/...",
-				"fileType": "other",
-			})
+			children = append(children, f.convertNodeToMap(child, depth+1))
 		}
 
 		if len(children) > 0 {
