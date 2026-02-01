@@ -383,6 +383,47 @@ const htmlTemplate = `<!DOCTYPE html>
             margin-bottom: 0;
         }
 
+        .duplicate-group {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .duplicate-group:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .duplicate-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .duplicate-filename {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-primary);
+            font-family: 'Monaco', 'Courier New', monospace;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 60%%;
+        }
+
+        .duplicate-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            padding: 4px 10px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+
         .no-insights {
             text-align: center;
             padding: 40px;
@@ -651,6 +692,48 @@ const htmlTemplate = `<!DOCTYPE html>
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+        }
+
+        // Truncate path while preserving filename
+        function truncatePath(path, maxLen) {
+            maxLen = maxLen || 80;
+            if (path.length <= maxLen) {
+                return path;
+            }
+
+            // Find the last path separator to identify the filename
+            const lastSep = path.lastIndexOf('/');
+            if (lastSep === -1) {
+                // No separator, just truncate from beginning
+                if (maxLen > 3) {
+                    return '...' + path.slice(-(maxLen - 3));
+                }
+                return path.slice(0, maxLen);
+            }
+
+            const filename = path.slice(lastSep + 1);
+            const dirPath = path.slice(0, lastSep);
+
+            // If filename alone is longer than maxLen, truncate it
+            if (filename.length >= maxLen - 4) { // 4 for ".../"
+                return '.../' + filename.slice(0, maxLen - 4);
+            }
+
+            // Calculate how much of the directory path we can keep
+            const ellipsis = '/.../';
+            const availableForDir = maxLen - filename.length - ellipsis.length;
+
+            if (availableForDir <= 0) {
+                // Just show the filename with ellipsis
+                return '.../' + filename;
+            }
+
+            // Take characters from the start of the directory path
+            if (availableForDir >= dirPath.length) {
+                return path; // Shouldn't happen, but safety check
+            }
+
+            return dirPath.slice(0, availableForDir) + ellipsis + filename;
         }
 
         // Color mapping for file types
@@ -1074,22 +1157,30 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '  </div>';
                 html += '  <div class="insight-files">';
                 html += '    <div class="insight-files-content">';
-                html += '      <div class="insight-files-header">Affected Files</div>';
-                html += '      <ul class="files-list">';
 
-                // Collect all unique files from all items in this category
-                const allFiles = new Set();
-                group.items.forEach(item => {
-                    if (item.files) {
-                        item.files.forEach(file => allFiles.add(file));
-                    }
-                });
+                // For duplicates, group files by duplicate set
+                if (category === 'duplicates') {
+                    html += renderDuplicateGroups(group.items);
+                } else {
+                    html += '      <div class="insight-files-header">Affected Files</div>';
+                    html += '      <ul class="files-list">';
 
-                Array.from(allFiles).forEach(file => {
-                    html += '<li>' + file + '</li>';
-                });
+                    // Collect all unique files from all items in this category
+                    const allFiles = new Set();
+                    group.items.forEach(item => {
+                        if (item.files) {
+                            item.files.forEach(file => allFiles.add(file));
+                        }
+                    });
 
-                html += '      </ul>';
+                    Array.from(allFiles).forEach(file => {
+                        const truncated = truncatePath(file, 80);
+                        html += '<li title="' + file + '">' + truncated + '</li>';
+                    });
+
+                    html += '      </ul>';
+                }
+
                 html += '    </div>';
                 html += '  </div>';
                 html += '</div>';
@@ -1102,6 +1193,41 @@ const htmlTemplate = `<!DOCTYPE html>
         function toggleInsight(index) {
             const card = document.getElementById('insight-' + index);
             card.classList.toggle('expanded');
+        }
+
+        // Render duplicate files grouped by duplicate set
+        function renderDuplicateGroups(items) {
+            let html = '';
+
+            // Sort items by impact (wasted size) descending
+            const sortedItems = [...items].sort((a, b) => b.impact - a.impact);
+
+            sortedItems.forEach((item, idx) => {
+                if (!item.files || item.files.length === 0) return;
+
+                // Extract filename from first file path for the group header
+                const firstFile = item.files[0];
+                const filename = firstFile.split('/').pop();
+                const copyCount = item.files.length;
+                const wastedSize = formatBytes(item.impact);
+
+                html += '<div class="duplicate-group">';
+                html += '  <div class="duplicate-group-header">';
+                html += '    <span class="duplicate-filename" title="' + filename + '">' + filename + '</span>';
+                html += '    <span class="duplicate-meta">' + copyCount + ' copies &middot; ' + wastedSize + ' wasted</span>';
+                html += '  </div>';
+                html += '  <ul class="files-list">';
+
+                item.files.forEach(file => {
+                    const truncated = truncatePath(file, 80);
+                    html += '<li title="' + file + '">' + truncated + '</li>';
+                });
+
+                html += '  </ul>';
+                html += '</div>';
+            });
+
+            return html;
         }
 
         // Initialize visualizations

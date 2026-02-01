@@ -306,7 +306,7 @@ func (f *MarkdownFormatter) writeOptimizations(
 			if len(opt.Files) > 0 {
 				maxFiles := 3
 				for i := 0; i < len(opt.Files) && i < maxFiles; i++ {
-					truncated := truncatePath(opt.Files[i], 50)
+					truncated := truncatePath(opt.Files[i], 70)
 					if i > 0 {
 						filesDisplay += ", "
 					}
@@ -375,17 +375,47 @@ func (f *MarkdownFormatter) writeByExtension(w io.Writer, report *types.Report) 
 
 // Helper functions
 
-// truncatePath truncates long paths for readability
+// truncatePath truncates long paths for readability while preserving the filename.
+// It favors keeping the end of the path (filename) over the beginning.
 func truncatePath(path string, maxLen int) string {
 	if len(path) <= maxLen {
 		return path
 	}
-	// Truncate in middle: "very/long/.../path/file.ext"
-	partLen := (maxLen - 5) / 2 // 5 for ".../"
-	if partLen <= 0 {
-		partLen = 1
+
+	// Find the last path separator to identify the filename
+	lastSep := strings.LastIndex(path, "/")
+	if lastSep == -1 {
+		// No separator, just truncate from beginning
+		if maxLen > 3 {
+			return "..." + path[len(path)-(maxLen-3):]
+		}
+		return path[:maxLen]
 	}
-	return path[:partLen] + "/.../" + path[len(path)-partLen:]
+
+	filename := path[lastSep+1:]
+	dirPath := path[:lastSep]
+
+	// If filename alone is longer than maxLen, truncate it
+	if len(filename) >= maxLen-4 { // 4 for ".../"
+		return ".../" + filename[:maxLen-4]
+	}
+
+	// Calculate how much of the directory path we can keep
+	// Format: "dir/.../filename" where we want to maximize context
+	ellipsis := "/.../"
+	availableForDir := maxLen - len(filename) - len(ellipsis)
+
+	if availableForDir <= 0 {
+		// Just show the filename with ellipsis
+		return ".../" + filename
+	}
+
+	// Take characters from the start of the directory path
+	if availableForDir >= len(dirPath) {
+		return path // Shouldn't happen, but safety check
+	}
+
+	return dirPath[:availableForDir] + ellipsis + filename
 }
 
 // getCategoryGroups groups optimizations by category
