@@ -2033,7 +2033,6 @@ const htmlTemplate = `<!DOCTYPE html>
                     width: 'w-1/4',
                     render: (row) => {
                         return '<div class="flex items-center gap-2">' +
-                            '<span class="w-4 h-4 text-muted-foreground flex-shrink-0">' + icons.copy + '</span>' +
                             '<span class="text-sm font-medium truncate" title="' + row.file + '">' + row.file + '</span>' +
                             '<span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">' + row.count + 'x</span>' +
                             '</div>';
@@ -2044,10 +2043,10 @@ const htmlTemplate = `<!DOCTYPE html>
                     label: 'Locations',
                     sortable: false,
                     render: (row) => {
-                        const truncatedLocations = row.locations.length > 100
-                            ? row.locations.substring(0, 100) + '...'
-                            : row.locations;
-                        return '<span class="text-xs font-mono text-muted-foreground block truncate" title="' + row.locations + '">' + truncatedLocations + '</span>';
+                        const locationsList = row.locationsArray.map(loc =>
+                            '<div class="text-xs font-mono text-muted-foreground py-0.5">' + loc + '</div>'
+                        ).join('');
+                        return '<div class="space-y-0.5 py-1">' + locationsList + '</div>';
                     }
                 },
                 {
