@@ -2005,70 +2005,68 @@ const htmlTemplate = `<!DOCTYPE html>
 
         // Render duplicate files grouped by duplicate set
         function renderDuplicateGroups(items, baseTableId) {
-            let html = '';
-
             // Sort items by impact (wasted size) descending
             const sortedItems = [...items].sort((a, b) => b.impact - a.impact);
 
-            sortedItems.forEach((item, idx) => {
-                if (!item.files || item.files.length === 0) return;
+            // Prepare data for single consolidated table
+            const tableData = sortedItems.map(item => {
+                if (!item.files || item.files.length === 0) return null;
 
                 const firstFile = item.files[0];
                 const filename = firstFile.split('/').pop();
-                const copyCount = item.files.length;
-                const wastedSize = formatBytes(item.impact);
 
-                html += '<div class="mb-6 last:mb-0">';
+                return {
+                    file: filename,
+                    locations: item.files.join(', '),
+                    locationsArray: item.files, // For tooltip
+                    count: item.files.length,
+                    savings: item.impact,
+                    savingsFormatted: formatBytes(item.impact)
+                };
+            }).filter(item => item !== null);
 
-                // Group header
-                html += '<div class="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-border">';
-                html += '<div class="flex items-center gap-2 min-w-0">';
-                html += '<span class="w-5 h-5 text-muted-foreground">' + icons.copy + '</span>';
-                html += '<span class="font-semibold text-sm truncate" title="' + filename + '">' + filename + '</span>';
-                html += '</div>';
-                html += '<div class="flex items-center gap-2 flex-shrink-0">';
-                html += '<span class="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">' + copyCount + ' copies</span>';
-                html += '<span class="text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded-md">' + wastedSize + ' wasted</span>';
-                html += '</div>';
-                html += '</div>';
-
-                // Prepare data for this duplicate set
-                const tableId = baseTableId + '-dup-' + idx;
-                const dupeData = item.files.map((file, fileIdx) => ({
-                    path: file,
-                    isOriginal: fileIdx === 0
-                }));
-
-                const columns = [
-                    {
-                        key: 'path',
-                        label: 'Location',
-                        sortable: false,
-                        render: (row) => {
-                            return '<span class="text-xs font-mono text-muted-foreground truncate block max-w-lg" title="' + row.path + '">' + truncatePath(row.path, 70) + '</span>';
-                        }
-                    },
-                    {
-                        key: 'isOriginal',
-                        label: 'Status',
-                        align: 'right',
-                        width: 'w-32',
-                        sortable: false,
-                        render: (row) => {
-                            if (row.isOriginal) {
-                                return '<span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Original</span>';
-                            } else {
-                                return '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Duplicate</span>';
-                            }
-                        }
+            const columns = [
+                {
+                    key: 'file',
+                    label: 'File',
+                    sortable: true,
+                    width: 'w-1/4',
+                    render: (row) => {
+                        return '<div class="flex items-center gap-2">' +
+                            '<span class="w-4 h-4 text-muted-foreground flex-shrink-0">' + icons.copy + '</span>' +
+                            '<span class="text-sm font-medium truncate" title="' + row.file + '">' + row.file + '</span>' +
+                            '<span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">' + row.count + 'x</span>' +
+                            '</div>';
                     }
-                ];
+                },
+                {
+                    key: 'locations',
+                    label: 'Locations',
+                    sortable: false,
+                    render: (row) => {
+                        const truncatedLocations = row.locations.length > 100
+                            ? row.locations.substring(0, 100) + '...'
+                            : row.locations;
+                        return '<span class="text-xs font-mono text-muted-foreground block truncate" title="' + row.locations + '">' + truncatedLocations + '</span>';
+                    }
+                },
+                {
+                    key: 'savings',
+                    label: 'Savings',
+                    align: 'right',
+                    width: 'w-32',
+                    sortable: true,
+                    render: (row) => {
+                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + row.savingsFormatted + '</span>';
+                    }
+                }
+            ];
 
-                html += createDataTable(tableId, dupeData, columns, { pageSize: 5 });
-                html += '</div>';
+            return createDataTable(baseTableId, tableData, columns, {
+                pageSize: 10,
+                defaultSort: 'savings',
+                defaultSortDir: 'desc'
             });
-
-            return html;
         }
 
         // Legend configuration - colors and labels
