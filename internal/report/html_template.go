@@ -125,15 +125,59 @@ const htmlTemplate = `<!DOCTYPE html>
             font-size: 18px;
         }
 
-        .main-content {
+        .tabs-container {
+            margin-bottom: 20px;
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-secondary);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .tab-button:hover {
+            color: var(--text-primary);
+            background: var(--bg-primary);
+        }
+
+        .tab-button.active {
+            color: #007aff;
+            border-bottom-color: #007aff;
+            font-weight: 600;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .category-charts-container {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 20px;
         }
 
         @media (max-width: 1024px) {
-            .main-content {
+            .category-charts-container {
                 grid-template-columns: 1fr;
             }
         }
@@ -163,30 +207,24 @@ const htmlTemplate = `<!DOCTYPE html>
             height: 600px;
         }
 
-        .side-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
         .chart-card {
             background: var(--bg-secondary);
             border-radius: 12px;
-            padding: 20px;
+            padding: 30px;
             box-shadow: 0 2px 8px var(--shadow);
             transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .chart-card h2 {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 600;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             color: var(--text-primary);
         }
 
         .chart {
             width: 100%;
-            height: 280px;
+            height: 450px;
         }
 
         .insights-section {
@@ -523,66 +561,75 @@ const htmlTemplate = `<!DOCTYPE html>
             </button>
         </header>
 
-        <div class="main-content">
-            <div class="treemap-container">
-                <h2>Bundle Treemap</h2>
-                <p class="treemap-hint">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
-                <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search files (e.g., .png, Frameworks/, &#96;Assets.car&#96;)">
-                </div>
-                <div id="treemap"></div>
-                <div class="legend">
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #e74c3c;"></div>
-                        <span>Duplicates</span>
+        <div class="tabs-container">
+            <div class="tab-nav">
+                <button class="tab-button active" onclick="switchTab('app-analyzer')">App Analyzer</button>
+                <button class="tab-button" onclick="switchTab('category')">Category</button>
+            </div>
+
+            <div id="app-analyzer-panel" class="tab-panel active">
+                <div class="treemap-container">
+                    <h2>Bundle Treemap</h2>
+                    <p class="treemap-hint">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
+                    <div class="search-container">
+                        <input type="text" id="search-input" placeholder="Search files (e.g., .png, Frameworks/, &#96;Assets.car&#96;)">
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #5470c6;"></div>
-                        <span>Frameworks</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #91cc75;"></div>
-                        <span>Libraries</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #fac858;"></div>
-                        <span>Images</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #ea7ccc;"></div>
-                        <span>Native Libs</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #73c0de;"></div>
-                        <span>Asset Catalogs</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #3ba272;"></div>
-                        <span>Resources</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #fc8452;"></div>
-                        <span>UI</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #9a60b4;"></div>
-                        <span>DEX</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #999999;"></div>
-                        <span>Other</span>
+                    <div id="treemap"></div>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #e74c3c;"></div>
+                            <span>Duplicates</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #5470c6;"></div>
+                            <span>Frameworks</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #91cc75;"></div>
+                            <span>Libraries</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #fac858;"></div>
+                            <span>Images</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #9a60b4;"></div>
+                            <span>DEX</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #ea7ccc;"></div>
+                            <span>Native Libs</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #73c0de;"></div>
+                            <span>Asset Catalogs</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #3ba272;"></div>
+                            <span>Resources</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #fc8452;"></div>
+                            <span>UI</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #999999;"></div>
+                            <span>Other</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="side-panel">
-                <div class="chart-card">
-                    <h2>Category Breakdown</h2>
-                    <div id="category-chart" class="chart"></div>
-                </div>
-                <div class="chart-card">
-                    <h2>Top Extensions</h2>
-                    <div id="extension-chart" class="chart"></div>
+            <div id="category-panel" class="tab-panel">
+                <div class="category-charts-container">
+                    <div class="chart-card">
+                        <h2>Category Breakdown</h2>
+                        <div id="category-chart" class="chart"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h2>Top Extensions</h2>
+                        <div id="extension-chart" class="chart"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -611,6 +658,35 @@ const htmlTemplate = `<!DOCTYPE html>
         let originalFileTree = null;
         let originalCategories = null;
         let originalExtensions = null;
+
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Remove active class from all tabs and panels
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabPanels = document.querySelectorAll('.tab-panel');
+
+            tabButtons.forEach(button => button.classList.remove('active'));
+            tabPanels.forEach(panel => panel.classList.remove('active'));
+
+            // Add active class to selected tab and panel
+            const selectedButton = event.target;
+            selectedButton.classList.add('active');
+
+            const selectedPanel = document.getElementById(tabName + '-panel');
+            selectedPanel.classList.add('active');
+
+            // Resize charts when switching to category tab
+            if (tabName === 'category') {
+                setTimeout(() => {
+                    if (categoryChart) categoryChart.resize();
+                    if (extensionChart) extensionChart.resize();
+                }, 100);
+            } else if (tabName === 'app-analyzer') {
+                setTimeout(() => {
+                    if (treemapChart) treemapChart.resize();
+                }, 100);
+            }
+        }
 
         // Initialize theme from localStorage
         function initTheme() {
