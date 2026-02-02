@@ -124,6 +124,11 @@ func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath 
 		detector.NewUnnecessaryFilesDetector(),
 	}
 
+	// Add iOS-specific detectors
+	if o.isIOSArtifact(report.ArtifactInfo.Type) {
+		detectors = append(detectors, detector.NewSmallFilesDetector())
+	}
+
 	for _, d := range detectors {
 		opts, err := d.Detect(extractPath)
 		if err != nil {
@@ -132,6 +137,13 @@ func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath 
 		}
 		report.Optimizations = append(report.Optimizations, opts...)
 	}
+}
+
+// isIOSArtifact checks if the artifact is an iOS artifact
+func (o *Orchestrator) isIOSArtifact(artifactType types.ArtifactType) bool {
+	return artifactType == types.ArtifactTypeIPA ||
+		artifactType == types.ArtifactTypeApp ||
+		artifactType == types.ArtifactTypeXCArchive
 }
 
 // generateOptimizations creates optimization recommendations from analysis results
