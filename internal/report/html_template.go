@@ -1708,6 +1708,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 const metadata = categoryMetadata[category] || {
                     icon: icons.lightbulb,
                     title: category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    description: 'Optimization opportunities to reduce your bundle size.',
                     learnMore: 'https://devcenter.bitrise.io'
                 };
 
