@@ -148,13 +148,17 @@ func (d *SmallFilesDetector) Detect(rootPath string) ([]types.Optimization, erro
 			displayCount = 20
 		}
 
-		// Extract paths from sorted, limited list
+		// Extract paths and calculate impact for displayed files only
 		var displayFiles []string
+		var displayedWaste int64
 		for i := 0; i < displayCount; i++ {
 			displayFiles = append(displayFiles, mapper.ToRelative(files[i].Path))
+			displayedWaste += files[i].WastedSize
 		}
 
 		// Create descriptive title and action based on file type
+		// Use totalWasted for title/description (shows total problem size)
+		// But use displayedWaste for impact (matches displayed files)
 		title, description, action := generateRecommendation(ext, len(files), totalWasted)
 
 		optimizations = append(optimizations, types.Optimization{
@@ -162,7 +166,7 @@ func (d *SmallFilesDetector) Detect(rootPath string) ([]types.Optimization, erro
 			Severity:    determineSeverity(len(files), totalWasted),
 			Title:       title,
 			Description: description,
-			Impact:      totalWasted,
+			Impact:      displayedWaste, // Impact matches the displayed files
 			Files:       displayFiles,
 			Action:      action,
 		})
