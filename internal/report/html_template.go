@@ -1268,7 +1268,7 @@ const htmlTemplate = `<!DOCTYPE html>
             // Table body
             html += '<tbody class="divide-y divide-border">';
             files.forEach((file, idx) => {
-                const rowClass = idx %% 2 === 0 ? 'bg-background' : 'bg-muted/20';
+                const rowClass = idx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
                 html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
                 html += '<td class="px-4 py-3">';
                 html += '<div class="flex flex-col gap-0.5">';
@@ -1333,7 +1333,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '<tbody class="divide-y divide-border">';
 
                 item.files.forEach((file, fileIdx) => {
-                    const rowClass = fileIdx %% 2 === 0 ? 'bg-background' : 'bg-muted/20';
+                    const rowClass = fileIdx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
                     const isOriginal = fileIdx === 0;
 
                     html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
