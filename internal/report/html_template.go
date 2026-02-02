@@ -2023,10 +2023,21 @@ const htmlTemplate = `<!DOCTYPE html>
             const fileMap = new Map();
             items.forEach(item => {
                 if (item.files && item.files.length > 0) {
-                    const perFileSavings = Math.floor(item.impact / item.files.length);
                     item.files.forEach(file => {
-                        const existing = fileMap.get(file) || 0;
-                        fileMap.set(file, existing + perFileSavings);
+                        // Check if file has encoded savings (format: "path|savings")
+                        // This is used by small-files detector for accurate per-file waste
+                        if (file.includes('|')) {
+                            const parts = file.split('|');
+                            const filePath = parts[0];
+                            const fileSavings = parseInt(parts[1], 10);
+                            const existing = fileMap.get(filePath) || 0;
+                            fileMap.set(filePath, existing + fileSavings);
+                        } else {
+                            // Default: divide impact equally among files
+                            const perFileSavings = Math.floor(item.impact / item.files.length);
+                            const existing = fileMap.get(file) || 0;
+                            fileMap.set(file, existing + perFileSavings);
+                        }
                     });
                 }
             });

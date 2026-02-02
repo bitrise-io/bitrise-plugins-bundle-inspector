@@ -148,11 +148,14 @@ func (d *SmallFilesDetector) Detect(rootPath string) ([]types.Optimization, erro
 			displayCount = 20
 		}
 
-		// Extract paths and calculate impact for displayed files only
+		// Extract paths with individual waste amounts and calculate total impact
+		// Format: "path|wastedBytes" so we can display accurate per-file savings
 		var displayFiles []string
 		var displayedWaste int64
 		for i := 0; i < displayCount; i++ {
-			displayFiles = append(displayFiles, mapper.ToRelative(files[i].Path))
+			// Encode waste amount in the path for accurate per-file display
+			pathWithWaste := fmt.Sprintf("%s|%d", mapper.ToRelative(files[i].Path), files[i].WastedSize)
+			displayFiles = append(displayFiles, pathWithWaste)
 			displayedWaste += files[i].WastedSize
 		}
 
