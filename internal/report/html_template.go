@@ -167,7 +167,7 @@ const htmlTemplate = `<!DOCTYPE html>
         }
     </style>
 </head>
-<body class="font-sans antialiased">
+<body class="font-sans antialiased bg-background text-foreground">
     <!-- Top Navigation Bar -->
     <header class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div class="w-full max-w-7xl mx-auto px-6">
@@ -216,7 +216,7 @@ const htmlTemplate = `<!DOCTYPE html>
     <main class="w-full">
         <div class="w-full max-w-7xl mx-auto px-6 py-6 space-y-6">
         <!-- App Info Card -->
-        <div class="w-full rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
             <h1 class="text-3xl font-bold tracking-tight mb-4">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                         <!-- App Info -->
@@ -274,11 +274,10 @@ const htmlTemplate = `<!DOCTYPE html>
                             </div>
                         </div>
                     </div>
-            </div>
-        </div>
+                </div>
 
-        <!-- Tabs -->
-        <div class="w-full space-y-4">
+            <!-- Tabs -->
+            <div class="space-y-4">
             <div class="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
                 <button class="tab-button active inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
                         onclick="switchTab('app-analyzer')">App Analyzer</button>
@@ -361,7 +360,7 @@ const htmlTemplate = `<!DOCTYPE html>
         </div>
 
         <!-- Insights Section -->
-        <div class="w-full rounded-lg border bg-card text-card-foreground shadow-sm p-6" id="insights-section">
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6" id="insights-section">
             <h2 class="text-2xl font-bold tracking-tight mb-6">💡 Insights & Optimization Opportunities</h2>
             <div id="insights-list" class="space-y-4"></div>
         </div>
