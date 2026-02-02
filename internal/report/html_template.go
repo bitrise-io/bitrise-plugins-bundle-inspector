@@ -1976,11 +1976,18 @@ const htmlTemplate = `<!DOCTYPE html>
                 {
                     key: 'filename',
                     label: 'File',
+                    sortable: true,
+                    width: 'w-1/4',
                     render: (row) => {
-                        return '<div class="flex flex-col gap-0.5">' +
-                            '<span class="font-medium text-foreground truncate max-w-md" title="' + row.path + '">' + row.filename + '</span>' +
-                            '<span class="text-xs text-muted-foreground font-mono truncate max-w-md">' + truncatePath(row.path, 60) + '</span>' +
-                            '</div>';
+                        return '<span class="text-sm font-medium truncate block" title="' + row.filename + '">' + row.filename + '</span>';
+                    }
+                },
+                {
+                    key: 'path',
+                    label: 'Path',
+                    sortable: false,
+                    render: (row) => {
+                        return '<div class="max-w-2xl"><div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + row.path + '</div></div>';
                     }
                 },
                 {
@@ -1988,10 +1995,9 @@ const htmlTemplate = `<!DOCTYPE html>
                     label: 'Savings',
                     align: 'right',
                     width: 'w-32',
+                    sortable: true,
                     render: (row) => {
-                        return '<span class="inline-flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded">' +
-                            formatBytes(row.savings) +
-                            '</span>';
+                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + formatBytes(row.savings) + '</span>';
                     }
                 }
             ];
