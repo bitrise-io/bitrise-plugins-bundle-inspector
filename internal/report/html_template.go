@@ -1888,7 +1888,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '<tr class="' + rowClass + ' hover:bg-muted/50 transition-colors">';
                 columns.forEach(col => {
                     const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
-                    html += '<td class="p-4 align-middle ' + alignClass + '">';
+                    html += '<td class="p-4 align-top ' + alignClass + '">';
                     html += col.render ? col.render(row) : row[col.key];
                     html += '</td>';
                 });
