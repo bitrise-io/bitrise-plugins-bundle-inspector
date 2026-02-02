@@ -2200,7 +2200,7 @@ const htmlTemplate = `<!DOCTYPE html>
         let filteredFilesData = [];
 
         // Render files table
-        function renderFilesTable() {
+        function renderFilesTabTable() {
             const container = document.getElementById('files-table-container');
             if (!container) return;
 
@@ -2270,7 +2270,7 @@ const htmlTemplate = `<!DOCTYPE html>
         function filterFiles(query) {
             if (!query || query.trim() === '') {
                 filteredFilesData = [];
-                renderFilesTable();
+                renderFilesTabTable();
                 return;
             }
 
@@ -2281,13 +2281,13 @@ const htmlTemplate = `<!DOCTYPE html>
                        file.type.toLowerCase().includes(lowerQuery);
             });
 
-            renderFilesTable();
+            renderFilesTabTable();
         }
 
         // Initialize files table
         function initFilesTable() {
             allFilesData = getAllFiles();
-            renderFilesTable();
+            renderFilesTabTable();
         }
 
         // Legend configuration - colors and labels
