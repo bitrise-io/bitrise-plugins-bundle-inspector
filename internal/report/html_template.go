@@ -1428,31 +1428,37 @@ const htmlTemplate = `<!DOCTYPE html>
             'strip-symbols': {
                 icon: icons.wrench,
                 title: 'Strip Binary Symbols',
+                description: 'Remove debug symbols from binaries to reduce file size without affecting app functionality.',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/strip-debug-symbols.html'
             },
             'frameworks': {
                 icon: icons.package,
                 title: 'Unused Frameworks',
+                description: 'Frameworks included in your bundle but not referenced or used by your application.',
                 learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
             },
             'duplicates': {
                 icon: icons.copy,
                 title: 'Duplicate Files',
+                description: 'Identical files appearing multiple times in your bundle, wasting storage space.',
                 learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
             },
             'image-optimization': {
                 icon: icons.image,
                 title: 'Image Optimization',
+                description: 'Images that can be compressed or converted to more efficient formats to reduce size.',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             },
             'loose-images': {
                 icon: icons.camera,
                 title: 'Loose Images',
+                description: 'Images stored as individual files instead of being compiled into asset catalogs.',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             },
             'unnecessary-files': {
                 icon: icons.trash,
                 title: 'Unnecessary Files',
+                description: 'Files that are not needed in production builds and can be safely removed.',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             }
         };
@@ -1565,7 +1571,7 @@ const htmlTemplate = `<!DOCTYPE html>
             // Description
             content.appendChild(SafeHTML.createElement('p', {
                 className: 'text-sm text-muted-foreground leading-normal mb-2.5',
-                textContent: group.description
+                textContent: metadata.description || group.description
             }));
 
             // Stats row
