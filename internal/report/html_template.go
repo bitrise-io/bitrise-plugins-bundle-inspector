@@ -445,7 +445,7 @@ const htmlTemplate = `<!DOCTYPE html>
             </div>
 
             <section id="app-analyzer-panel" class="tab-panel active" aria-labelledby="treemap-heading">
-                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 hover:-translate-y-0.5 transition-transform duration-300">
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                     <h2 id="treemap-heading" class="scroll-m-20 text-2xl font-semibold tracking-tight">Bundle Treemap</h2>
                     <p class="text-sm text-muted-foreground leading-relaxed mt-1.5 mb-4">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
                     <div class="mb-4">
