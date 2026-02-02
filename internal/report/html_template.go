@@ -2460,6 +2460,11 @@ const htmlTemplate = `<!DOCTYPE html>
                     switchToTab('category');
                     break;
 
+                case 'f':
+                    event.preventDefault();
+                    switchToTab('files');
+                    break;
+
                 case 'e':
                     event.preventDefault();
                     toggleAllInsights();
