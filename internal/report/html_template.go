@@ -172,7 +172,13 @@ const htmlTemplate = `<!DOCTYPE html>
 
         .treemap-container h2 {
             color: var(--text-primary);
-            margin-bottom: 15px;
+            margin-bottom: 5px;
+        }
+
+        .treemap-hint {
+            color: var(--text-tertiary);
+            font-size: 13px;
+            margin-bottom: 12px;
         }
 
         #treemap {
@@ -554,6 +560,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <div class="main-content">
             <div class="treemap-container">
                 <h2>Bundle Treemap</h2>
+                <p class="treemap-hint">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
                 <div class="search-container">
                     <input type="text" id="search-input" placeholder="Search files (e.g., .png, Framework, Assets.car)">
                 </div>
@@ -908,24 +915,37 @@ const htmlTemplate = `<!DOCTYPE html>
                     type: 'treemap',
                     width: '100%%',
                     height: '100%%',
-                    roam: false,
+                    roam: true,
                     nodeClick: 'zoomToNode',
+                    leafDepth: 4,
+                    zoomToNodeRatio: 0.32 * 0.32,
+                    scaleLimit: {
+                        min: 0.5,
+                        max: 20
+                    },
+                    drillDownIcon: '▶',
                     colorMappingBy: 'value',
                     breadcrumb: {
                         show: true,
-                        height: 25,
+                        top: 5,
+                        left: 5,
+                        height: 28,
+                        emptyItemWidth: 25,
                         itemStyle: {
-                            color: isDark ? 'rgba(42,42,42,0.9)' : 'rgba(255,255,255,0.7)',
-                            borderColor: isDark ? 'rgba(58,58,58,0.9)' : 'rgba(255,255,255,0.7)',
+                            color: isDark ? 'rgba(60,60,60,0.95)' : 'rgba(80,80,80,0.9)',
+                            borderColor: isDark ? 'rgba(80,80,80,0.9)' : 'rgba(60,60,60,0.8)',
+                            borderWidth: 1,
+                            borderRadius: 4,
                             textStyle: {
-                                color: breadcrumbText
+                                color: '#fff',
+                                fontSize: 12
                             }
                         },
                         emphasis: {
                             itemStyle: {
-                                color: isDark ? 'rgba(42,42,42,1)' : 'rgba(255,255,255,1)',
+                                color: isDark ? 'rgba(80,80,80,1)' : 'rgba(60,60,60,1)',
                                 textStyle: {
-                                    color: breadcrumbText
+                                    color: '#fff'
                                 }
                             }
                         }
