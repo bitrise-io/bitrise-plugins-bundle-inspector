@@ -186,8 +186,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         <circle cx="120" cy="120" r="15" fill="white"/>
                     </svg>
                     <div class="flex flex-col">
-                        <span class="font-bold text-lg leading-tight">Bundle Inspector</span>
-                        <span class="text-xs text-muted-foreground">Size Analysis Report</span>
+                        <span class="font-semibold text-lg leading-none tracking-tight">Bundle Inspector</span>
+                        <span class="text-xs text-muted-foreground leading-none">Size Analysis Report</span>
                     </div>
                 </div>
 
@@ -217,11 +217,11 @@ const htmlTemplate = `<!DOCTYPE html>
         <div class="w-full max-w-7xl mx-auto px-6 py-6 space-y-6">
         <!-- App Info Card -->
         <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <h1 class="text-3xl font-bold tracking-tight mb-4">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
+            <h1 class="scroll-m-20 text-3xl font-semibold tracking-tight">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                         <!-- App Info -->
                         <div class="space-y-4">
-                            <h3 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">App Info</h3>
+                            <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">App Info</h3>
                             <div class="space-y-3">
                                 {{if .BundleID}}<div class="flex justify-between items-baseline gap-4">
                                     <span class="text-sm text-muted-foreground font-medium">Bundle ID</span>
@@ -239,7 +239,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         </div>
                         <!-- Build Info -->
                         <div class="space-y-4">
-                            <h3 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Build Info</h3>
+                            <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Build Info</h3>
                             <div class="space-y-3">
                                 {{if .Branch}}<div class="flex justify-between items-baseline gap-4">
                                     <span class="text-sm text-muted-foreground font-medium">Branch</span>
@@ -257,7 +257,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         </div>
                         <!-- Size Analysis -->
                         <div class="space-y-4">
-                            <h3 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Size Analysis</h3>
+                            <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size Analysis</h3>
                             <div class="space-y-3">
                                 <div class="flex justify-between items-baseline gap-4">
                                     <span class="text-sm text-muted-foreground font-medium">Download Size</span>
@@ -287,8 +287,8 @@ const htmlTemplate = `<!DOCTYPE html>
 
             <div id="app-analyzer-panel" class="tab-panel active">
                 <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 hover:-translate-y-0.5 transition-transform duration-300">
-                    <h2 class="text-2xl font-bold tracking-tight mb-2">Bundle Treemap</h2>
-                    <p class="text-sm text-muted-foreground mb-4">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
+                    <h2 class="scroll-m-20 text-2xl font-semibold tracking-tight">Bundle Treemap</h2>
+                    <p class="text-sm text-muted-foreground leading-relaxed mt-1.5 mb-4">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
                     <div class="mb-4">
                         <div class="relative">
                             <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -348,11 +348,11 @@ const htmlTemplate = `<!DOCTYPE html>
             <div id="category-panel" class="tab-panel">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 hover:-translate-y-0.5 transition-transform duration-300">
-                        <h2 class="text-xl font-bold tracking-tight mb-6">Category Breakdown</h2>
+                        <h2 class="scroll-m-20 text-xl font-semibold tracking-tight mb-6">Category Breakdown</h2>
                         <div id="category-chart" class="chart"></div>
                     </div>
                     <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 hover:-translate-y-0.5 transition-transform duration-300">
-                        <h2 class="text-xl font-bold tracking-tight mb-6">Top Extensions</h2>
+                        <h2 class="scroll-m-20 text-xl font-semibold tracking-tight mb-6">Top Extensions</h2>
                         <div id="extension-chart" class="chart"></div>
                     </div>
                 </div>
@@ -361,7 +361,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
         <!-- Insights Section -->
         <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6" id="insights-section">
-            <h2 class="text-2xl font-bold tracking-tight mb-6 flex items-center gap-3">
+            <h2 class="scroll-m-20 text-2xl font-semibold tracking-tight mb-6 flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
                 Insights & Optimization Opportunities
             </h2>
@@ -1171,10 +1171,10 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '    <div class="flex-shrink-0 w-6 h-6 text-primary">' + metadata.icon + '</div>';
                 html += '    <div class="flex-1 min-w-0">';
                 html += '      <div class="flex items-center justify-between gap-2 mb-1.5">';
-                html += '        <h3 class="text-base font-semibold leading-none">' + metadata.title + '</h3>';
-                html += '        <div class="expand-indicator text-base text-muted-foreground flex-shrink-0 transition-transform duration-200">▼</div>';
+                html += '        <h3 class="text-sm font-semibold leading-none tracking-tight">' + metadata.title + '</h3>';
+                html += '        <svg class="expand-indicator w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
                 html += '      </div>';
-                html += '      <p class="text-sm text-muted-foreground mb-2.5 leading-snug">' + group.description + '</p>';
+                html += '      <p class="text-sm text-muted-foreground leading-normal mb-2.5">' + group.description + '</p>';
                 html += '      <div class="flex items-center gap-2 flex-wrap text-xs">';
                 html += '        <span class="inline-flex items-center gap-1.5 font-semibold bg-success/10 text-success px-2 py-1 rounded-md">';
                 html += '          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>';
@@ -1184,7 +1184,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>';
                 html += '          ' + group.totalFiles + ' files';
                 html += '        </span>';
-                html += '        <a href="' + metadata.learnMore + '" class="inline-flex items-center gap-0.5 text-primary hover:text-primary/80 font-semibold transition-colors" target="_blank" onclick="event.stopPropagation()">';
+                html += '        <a href="' + metadata.learnMore + '" class="inline-flex items-center gap-0.5 text-primary hover:underline font-medium transition-colors" target="_blank" onclick="event.stopPropagation()">';
                 html += '          Learn more';
                 html += '          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
                 html += '        </a>';
@@ -1338,13 +1338,13 @@ const htmlTemplate = `<!DOCTYPE html>
                 const widthClass = col.width ? ' ' + col.width : '';
 
                 if (col.sortable !== false) {
-                    html += '<th class="font-medium text-muted-foreground px-4 py-3' + widthClass + '">';
+                    html += '<th class="h-10 px-4 align-middle font-medium text-muted-foreground' + widthClass + '">';
                     html += '<button onclick="handleDataTableSort(\'' + tableId + '\', \'' + col.key + '\')" class="group inline-flex items-center gap-1 hover:text-foreground transition-colors ' + alignClass + ' w-full">';
                     html += col.label + sortIcon;
                     html += '</button>';
                     html += '</th>';
                 } else {
-                    html += '<th class="font-medium text-muted-foreground px-4 py-3 ' + alignClass + widthClass + '">' + col.label + '</th>';
+                    html += '<th class="h-10 px-4 align-middle font-medium text-muted-foreground ' + alignClass + widthClass + '">' + col.label + '</th>';
                 }
             });
             html += '</tr>';
@@ -1354,10 +1354,10 @@ const htmlTemplate = `<!DOCTYPE html>
             html += '<tbody class="divide-y divide-border">';
             pageData.forEach((row, idx) => {
                 const rowClass = idx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
-                html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
+                html += '<tr class="' + rowClass + ' hover:bg-muted/50 transition-colors">';
                 columns.forEach(col => {
                     const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
-                    html += '<td class="px-4 py-3 ' + alignClass + '">';
+                    html += '<td class="p-4 align-middle ' + alignClass + '">';
                     html += col.render ? col.render(row) : row[col.key];
                     html += '</td>';
                 });
