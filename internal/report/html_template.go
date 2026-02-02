@@ -767,21 +767,95 @@ const htmlTemplate = `<!DOCTYPE html>
             return fileTypeColors[fileType] || fileTypeColors['other'];
         }
 
-        // Apply colors to tree nodes (duplicates are colored red)
-        function applyColorsToTree(node) {
-            // Check if this node is a duplicate file
+        // Darken a hex color by a factor (0 = original, 1 = black)
+        function darkenColor(hex, factor) {
+            // Remove # if present
+            hex = hex.replace(/^#/, '');
+
+            // Parse RGB
+            let r = parseInt(hex.substring(0, 2), 16);
+            let g = parseInt(hex.substring(2, 4), 16);
+            let b = parseInt(hex.substring(4, 6), 16);
+
+            // Darken
+            r = Math.round(r * (1 - factor));
+            g = Math.round(g * (1 - factor));
+            b = Math.round(b * (1 - factor));
+
+            // Convert back to hex
+            return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Get the dominant file type from a node's descendants
+        function getDominantFileType(node) {
+            if (node.fileType) {
+                return node.fileType;
+            }
+            if (!node.children || node.children.length === 0) {
+                return 'other';
+            }
+
+            // Count file types by total size
+            const typeSizes = {};
+            function countTypes(n) {
+                if (n.fileType && n.value) {
+                    typeSizes[n.fileType] = (typeSizes[n.fileType] || 0) + n.value;
+                }
+                if (n.children) {
+                    n.children.forEach(countTypes);
+                }
+            }
+            countTypes(node);
+
+            // Find the type with the largest total size
+            let dominantType = 'other';
+            let maxSize = 0;
+            for (const type in typeSizes) {
+                if (typeSizes[type] > maxSize) {
+                    maxSize = typeSizes[type];
+                    dominantType = type;
+                }
+            }
+            return dominantType;
+        }
+
+        // Apply colors to tree nodes with depth-based darkening
+        function applyColorsToTree(node, depth) {
+            depth = depth || 0;
+            const isParent = node.children && node.children.length > 0;
+
+            // Parent nodes (folders) get darker colors for readable headers
+            // Leaf nodes get progressively lighter colors based on depth
+            let darkenFactor;
+            if (isParent) {
+                // Parents are dark (0.4 base) and get slightly darker with depth
+                darkenFactor = 0.4 + Math.min(depth * 0.05, 0.15);
+            } else {
+                // Leaves are lighter and vary with depth
+                darkenFactor = Math.min(depth * 0.08, 0.3);
+            }
+
+            // Determine the base color for this node
+            let baseColor;
             if (node.path && duplicatePaths.has(node.path)) {
-                node.itemStyle = {
-                    color: fileTypeColors['duplicate']
-                };
+                baseColor = fileTypeColors['duplicate'];
                 node.isDuplicate = true;
-            } else if (node.fileType) {
-                node.itemStyle = {
-                    color: getColorForFileType(node.fileType)
-                };
+            } else {
+                const fileType = node.fileType || getDominantFileType(node);
+                baseColor = getColorForFileType(fileType);
+            }
+
+            // Apply color with darkening
+            const finalColor = darkenColor(baseColor, darkenFactor);
+            node.itemStyle = node.itemStyle || {};
+            node.itemStyle.color = finalColor;
+
+            // For parent nodes, also set a darker border to help define the header area
+            if (isParent) {
+                node.itemStyle.borderColor = darkenColor(baseColor, darkenFactor + 0.2);
             }
             if (node.children) {
-                node.children.forEach(child => applyColorsToTree(child));
+                node.children.forEach(child => applyColorsToTree(child, depth + 1));
             }
         }
 
@@ -836,6 +910,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     height: '100%%',
                     roam: false,
                     nodeClick: 'zoomToNode',
+                    colorMappingBy: 'value',
                     breadcrumb: {
                         show: true,
                         height: 25,
@@ -862,12 +937,6 @@ const htmlTemplate = `<!DOCTYPE html>
                         overflow: 'truncate',
                         color: isDark ? '#fff' : '#000'
                     },
-                    upperLabel: {
-                        show: true,
-                        height: 25,
-                        color: '#fff',
-                        textBorderColor: 'transparent'
-                    },
                     itemStyle: {
                         borderColor: borderColor,
                         borderWidth: 2,
@@ -884,21 +953,114 @@ const htmlTemplate = `<!DOCTYPE html>
                             borderWidth: 3
                         }
                     },
+                    visibleMin: 200,
+                    childrenVisibleMin: 100,
                     levels: [
                         {
+                            // Level 0: Root level
                             itemStyle: {
                                 borderWidth: 0,
-                                gapWidth: 5
+                                gapWidth: 4
+                            },
+                            upperLabel: {
+                                show: false
                             }
                         },
                         {
+                            // Level 1: Main categories
                             itemStyle: {
-                                gapWidth: 1
+                                gapWidth: 2,
+                                borderWidth: 2,
+                                borderColor: isDark ? '#444' : '#ddd'
+                            },
+                            upperLabel: {
+                                show: true,
+                                height: 28,
+                                formatter: function(params) {
+                                    return '{bg|' + params.name + '}';
+                                },
+                                rich: {
+                                    bg: {
+                                        backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.7)',
+                                        color: '#fff',
+                                        fontWeight: 'bold',
+                                        fontSize: 13,
+                                        padding: [4, 8],
+                                        borderRadius: 3
+                                    }
+                                }
                             }
                         },
                         {
+                            // Level 2
                             itemStyle: {
-                                gapWidth: 1
+                                gapWidth: 2,
+                                borderWidth: 1,
+                                borderColor: isDark ? '#555' : '#eee'
+                            },
+                            upperLabel: {
+                                show: true,
+                                height: 24,
+                                formatter: function(params) {
+                                    return '{bg|' + params.name + '}';
+                                },
+                                rich: {
+                                    bg: {
+                                        backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.6)',
+                                        color: '#fff',
+                                        fontWeight: 'bold',
+                                        fontSize: 12,
+                                        padding: [3, 6],
+                                        borderRadius: 3
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            // Level 3
+                            itemStyle: {
+                                gapWidth: 1,
+                                borderWidth: 1,
+                                borderColor: isDark ? '#555' : '#eee'
+                            },
+                            upperLabel: {
+                                show: true,
+                                height: 22,
+                                formatter: function(params) {
+                                    return '{bg|' + params.name + '}';
+                                },
+                                rich: {
+                                    bg: {
+                                        backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.5)',
+                                        color: '#fff',
+                                        fontSize: 11,
+                                        padding: [2, 5],
+                                        borderRadius: 2
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            // Level 4+
+                            itemStyle: {
+                                gapWidth: 1,
+                                borderWidth: 1
+                            },
+                            upperLabel: {
+                                show: true,
+                                height: 20,
+                                formatter: function(params) {
+                                    return '{bg|' + params.name + '}';
+                                },
+                                rich: {
+                                    bg: {
+                                        backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.45)',
+                                        color: '#fff',
+                                        fontSize: 10,
+                                        padding: [2, 4],
+                                        borderRadius: 2
+                                    }
+                                }
                             }
                         }
                     ],
