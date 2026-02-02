@@ -3,11 +3,15 @@ package android
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/shogo82148/androidbinary"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
@@ -126,23 +130,67 @@ func parseAABManifest(aabPath string) (map[string]interface{}, error) {
 	}
 	defer zipFile.Close()
 
-	// Find AndroidManifest.xml (typically in base/manifest/ or other modules)
+	// Find and parse AndroidManifest.xml (typically in base/manifest/)
 	for _, f := range zipFile.File {
 		// AAB structure: base/manifest/AndroidManifest.xml or {module}/manifest/AndroidManifest.xml
 		if strings.HasSuffix(f.Name, "manifest/AndroidManifest.xml") {
 			manifest["has_manifest"] = true
+
 			// Extract module name from path (e.g., "base" from "base/manifest/AndroidManifest.xml")
 			parts := strings.Split(f.Name, "/")
 			if len(parts) > 0 {
 				manifest["base_module"] = parts[0]
 			}
+
+			// Read and parse the binary XML manifest
+			rc, err := f.Open()
+			if err != nil {
+				// Non-fatal, continue without detailed manifest info
+				break
+			}
+
+			// Read manifest content
+			manifestData, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				// Non-fatal, continue without detailed manifest info
+				break
+			}
+
+			// Parse binary XML
+			xmlFile, err := androidbinary.NewXMLFile(bytes.NewReader(manifestData))
+			if err != nil {
+				// Non-fatal, continue without detailed manifest info
+				break
+			}
+
+			// Decode manifest structure (same as APK)
+			var manifestStruct struct {
+				Package     androidbinary.String `xml:"package,attr"`
+				VersionCode androidbinary.Int32  `xml:"http://schemas.android.com/apk/res/android versionCode,attr"`
+				VersionName androidbinary.String `xml:"http://schemas.android.com/apk/res/android versionName,attr"`
+			}
+
+			// Decode the XML file into the manifest structure
+			if err := xmlFile.Decode(&manifestStruct, nil, nil); err == nil {
+				// Extract values if they exist
+				if pkg, err := manifestStruct.Package.String(); err == nil && pkg != "" {
+					manifest["package"] = pkg
+				}
+				if versionName, err := manifestStruct.VersionName.String(); err == nil && versionName != "" {
+					manifest["version"] = versionName
+				}
+				if versionCode, err := manifestStruct.VersionCode.Int32(); err == nil && versionCode > 0 {
+					manifest["version_code"] = fmt.Sprintf("%d", versionCode)
+				}
+			}
+
+			// Note: App name (label) requires resource parsing which is complex for AAB
+			// Icon extraction is handled separately by util.ExtractIconFromZip
+
 			break
 		}
 	}
-
-	// Note: Full manifest parsing requires binary XML decoding
-	// For MVP, we just detect its presence and module structure
-	// Full parsing can be added in future phases
 
 	return manifest, nil
 }

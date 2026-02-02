@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shogo82148/androidbinary/apk"
+
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -107,24 +109,46 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 func parseManifest(apkPath string) (map[string]interface{}, error) {
 	manifest := make(map[string]interface{})
 
-	// Open APK file
-	zipFile, err := zip.OpenReader(apkPath)
+	// Try to parse APK using androidbinary library
+	pkg, err := apk.OpenFile(apkPath)
 	if err != nil {
-		return manifest, fmt.Errorf("failed to open APK file: %w", err)
-	}
-	defer zipFile.Close()
-
-	// Find AndroidManifest.xml
-	for _, f := range zipFile.File {
-		if f.Name == "AndroidManifest.xml" {
-			manifest["has_manifest"] = true
-			break
+		// If full parsing fails (e.g., incomplete APK, missing resources),
+		// fall back to basic manifest detection
+		zipFile, zipErr := zip.OpenReader(apkPath)
+		if zipErr != nil {
+			return manifest, fmt.Errorf("failed to open APK: %w", zipErr)
 		}
+		defer zipFile.Close()
+
+		// Just detect manifest presence
+		for _, f := range zipFile.File {
+			if f.Name == "AndroidManifest.xml" {
+				manifest["has_manifest"] = true
+				break
+			}
+		}
+		return manifest, nil
+	}
+	defer pkg.Close()
+
+	// Extract package information
+	manifest["has_manifest"] = true
+	manifest["package"] = pkg.PackageName()
+
+	// Extract version information
+	m := pkg.Manifest()
+	if versionName, err := m.VersionName.String(); err == nil && versionName != "" {
+		manifest["version"] = versionName
+	}
+	if versionCode, err := m.VersionCode.Int32(); err == nil && versionCode > 0 {
+		manifest["version_code"] = fmt.Sprintf("%d", versionCode)
 	}
 
-	// Note: Full manifest parsing requires binary XML decoding
-	// For MVP, we just detect its presence
-	// Full parsing can be added in future phases
+	// Extract app name (label)
+	label, err := pkg.Label(nil) // nil for default locale
+	if err == nil && label != "" {
+		manifest["app_name"] = label
+	}
 
 	return manifest, nil
 }

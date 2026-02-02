@@ -133,7 +133,10 @@ func (f *HTMLFormatter) prepareTemplateData(report *types.Report) templateData {
 		if v, ok := report.Metadata["git_branch"].(string); ok {
 			branch = v
 		}
-		if v, ok := report.Metadata["git_commit"].(string); ok {
+		// Check both commit_hash (new) and git_commit (legacy) for backwards compatibility
+		if v, ok := report.Metadata["commit_hash"].(string); ok {
+			commitSHA = v
+		} else if v, ok := report.Metadata["git_commit"].(string); ok {
 			commitSHA = v
 		}
 	}
