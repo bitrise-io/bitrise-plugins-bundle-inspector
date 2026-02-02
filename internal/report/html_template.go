@@ -1712,9 +1712,17 @@ const htmlTemplate = `<!DOCTYPE html>
             const groups = groupByCategory(optimizations);
             const totalSize = reportData.fileTree ? reportData.fileTree.value : 0;
 
+            // Convert groups to array and sort by savings (highest first)
+            const sortedCategories = Object.keys(groups)
+                .map(category => ({
+                    category: category,
+                    group: groups[category]
+                }))
+                .sort((a, b) => b.group.totalSavings - a.group.totalSavings);
+
             // Render each category using DOM APIs
-            Object.keys(groups).forEach((category, index) => {
-                const group = groups[category];
+            sortedCategories.forEach((item, index) => {
+                const { category, group } = item;
                 const metadata = categoryMetadata[category] || {
                     icon: icons.lightbulb,
                     title: category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
