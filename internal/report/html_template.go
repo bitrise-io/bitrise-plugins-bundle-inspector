@@ -1942,7 +1942,8 @@ const htmlTemplate = `<!DOCTYPE html>
                 columns.forEach(col => {
                     const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
                     html += '<td class="p-4 align-top ' + alignClass + '">';
-                    html += col.render ? col.render(row) : row[col.key];
+                    const cellValue = col.render ? col.render(row) : (row[col.key] || '');
+                    html += cellValue;
                     html += '</td>';
                 });
                 html += '</tr>';
@@ -2032,7 +2033,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     sortable: true,
                     width: 'w-1/4',
                     render: (row) => {
-                        return '<span class="text-sm font-medium truncate block" title="' + row.filename + '">' + row.filename + '</span>';
+                        const filename = row.filename || 'Unknown';
+                        return '<span class="text-sm font-medium truncate block" title="' + filename + '">' + filename + '</span>';
                     }
                 },
                 {
@@ -2040,7 +2042,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     label: 'Path',
                     sortable: false,
                     render: (row) => {
-                        return '<div class="max-w-2xl"><div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + row.path + '</div></div>';
+                        const path = row.path || '';
+                        return '<div class="max-w-2xl"><div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + path + '</div></div>';
                     }
                 },
                 {
@@ -2050,7 +2053,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     width: 'w-32',
                     sortable: true,
                     render: (row) => {
-                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + formatBytes(row.savings) + '</span>';
+                        const savings = row.savings || 0;
+                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + formatBytes(savings) + '</span>';
                     }
                 }
             ];
@@ -2091,9 +2095,11 @@ const htmlTemplate = `<!DOCTYPE html>
                     sortable: true,
                     width: 'w-1/4',
                     render: (row) => {
+                        const file = row.file || 'Unknown';
+                        const count = row.count || 0;
                         return '<div class="flex items-center gap-2">' +
-                            '<span class="text-sm font-medium truncate" title="' + row.file + '">' + row.file + '</span>' +
-                            '<span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">' + row.count + 'x</span>' +
+                            '<span class="text-sm font-medium truncate" title="' + file + '">' + file + '</span>' +
+                            '<span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">' + count + 'x</span>' +
                             '</div>';
                     }
                 },
@@ -2102,8 +2108,9 @@ const htmlTemplate = `<!DOCTYPE html>
                     label: 'Locations',
                     sortable: false,
                     render: (row) => {
-                        const locationsList = row.locationsArray.map(loc =>
-                            '<div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + loc + '</div>'
+                        const locations = row.locationsArray || [];
+                        const locationsList = locations.map(loc =>
+                            '<div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + (loc || '') + '</div>'
                         ).join('');
                         return '<div class="space-y-0.5 py-1 max-w-2xl">' + locationsList + '</div>';
                     }
@@ -2115,7 +2122,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     width: 'w-32',
                     sortable: true,
                     render: (row) => {
-                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + row.savingsFormatted + '</span>';
+                        const savings = row.savingsFormatted || formatBytes(0);
+                        return '<span class="text-sm font-semibold text-success bg-success/10 px-2 py-1 rounded-md inline-block">' + savings + '</span>';
                     }
                 }
             ];
