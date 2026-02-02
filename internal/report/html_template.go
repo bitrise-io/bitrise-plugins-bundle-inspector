@@ -390,7 +390,7 @@ const htmlTemplate = `<!DOCTYPE html>
             </div>
 
             <!-- Size Metrics -->
-            <div class="bg-card px-6 py-4 border-t">
+            <div class="bg-card px-6 py-4 border-t rounded-b-lg">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="flex items-center justify-between">
                         <span class="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
