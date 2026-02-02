@@ -1584,14 +1584,14 @@ const htmlTemplate = `<!DOCTYPE html>
 
             const card = SafeHTML.createElement('div', {
                 className: 'insight-card rounded-lg border bg-card overflow-hidden transition-all duration-200 hover:shadow-md',
-                id: 'insight-' + index,
-                'data-action': 'toggle-insight',
-                'data-index': String(index)
+                id: 'insight-' + index
             });
 
-            // Header section
+            // Header section (clickable to toggle expand/collapse)
             const header = SafeHTML.createElement('div', {
-                className: 'flex items-start gap-3 p-4 cursor-pointer select-none'
+                className: 'flex items-start gap-3 p-4 cursor-pointer select-none',
+                'data-action': 'toggle-insight',
+                'data-index': String(index)
             });
 
             // Icon container
@@ -2459,6 +2459,10 @@ const htmlTemplate = `<!DOCTYPE html>
                         break;
 
                     case 'toggle-insight':
+                        // Don't toggle if clicking on a link or button inside the header
+                        if (event.target.tagName === 'A' || event.target.closest('a')) {
+                            break;
+                        }
                         const index = target.getAttribute('data-index');
                         if (index !== null) {
                             toggleInsight(parseInt(index, 10));
