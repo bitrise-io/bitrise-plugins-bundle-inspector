@@ -396,13 +396,208 @@ destPath, err := bitrise.WriteToDeployDir("report.json", jsonData)
 
 ## Release Process
 
-1. Update version in `cmd/bundle-inspector/main.go`
-2. Update CHANGELOG.md
-3. Tag release: `git tag -a v1.0.0 -m "Release v1.0.0"`
-4. Push: `git push origin v1.0.0`
-5. GitHub Actions builds binaries
-6. Binaries uploaded to releases
-7. Update plugin registry
+This project uses **goreleaser** to automate the release process, building binaries for multiple platforms and publishing to GitHub.
+
+### Prerequisites
+
+- `goreleaser` installed (`brew install goreleaser`)
+- GitHub CLI authenticated (`gh auth login`)
+- Clean git working directory
+- All tests passing
+
+### Release Steps
+
+#### 1. Update Version
+
+Edit `cmd/bundle-inspector/main.go` and update the version constant:
+
+```go
+var (
+    version = "0.2.0"  // Update this
+    commit  = "none"
+    date    = "unknown"
+)
+```
+
+#### 2. Commit Version Bump
+
+```bash
+git add cmd/bundle-inspector/main.go
+git commit -m "chore: bump version to 0.2.0"
+```
+
+#### 3. Ensure Clean Git State
+
+goreleaser requires a clean working directory. Check and clean up:
+
+```bash
+# Check status
+git status
+
+# If there are uncommitted changes:
+# - Add important files to .gitignore (bin/, *.local.json, etc.)
+# - Commit or stash changes
+# - Remove deleted files: git rm <file>
+
+# Example cleanup:
+git add .gitignore
+git rm obsolete-file.md
+git commit -m "chore: cleanup before release"
+```
+
+#### 4. Push Changes
+
+```bash
+git push origin main
+```
+
+#### 5. Create Git Tag
+
+Create an annotated tag with release notes:
+
+```bash
+git tag -a 0.2.0 -m "Release 0.2.0
+
+Brief description of what's in this release.
+
+New features:
+- Feature 1
+- Feature 2
+
+Bug fixes:
+- Fix 1
+
+Technical changes:
+- Change 1
+"
+```
+
+#### 6. Run goreleaser
+
+Export GitHub token and run goreleaser:
+
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+goreleaser release --clean
+```
+
+This will:
+- Run `go mod tidy`
+- Run all tests (`go test ./...`)
+- Build binaries for:
+  - Darwin (macOS) ARM64
+  - Darwin (macOS) x86_64
+  - Linux x86_64
+- Inject version, commit, and date into binaries via ldflags
+- Generate SHA256 checksums
+- Create GitHub release
+- Upload all binaries as release assets
+
+#### 7. Verify Release
+
+```bash
+# View release details
+gh release view 0.2.0
+
+# Check assets
+gh release view 0.2.0 --json assets --jq '.assets[].name'
+
+# Open in browser
+gh release view 0.2.0 --web
+```
+
+#### 8. Update Plugin Configuration (if needed)
+
+If you have a `bitrise-plugin.yml` file, update the executable URLs:
+
+```yaml
+executable:
+  osx: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-x86_64
+  osx-arm64: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-arm64
+  linux: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Linux-x86_64
+```
+
+### goreleaser Configuration
+
+The release configuration is defined in `.goreleaser.yml`:
+
+**Key settings:**
+- **Binary format**: Raw binaries (not archives) for Bitrise compatibility
+- **Platforms**: Darwin (arm64, x86_64), Linux (x86_64)
+- **Naming**: `bundle-inspector-{OS}-{Arch}`
+- **Version injection**: Via ldflags into `main.version`, `main.commit`, `main.date`
+- **Release title**: `{Version}` (version number only, no "v" prefix)
+- **Changelog**: Auto-generated, excludes `docs:`, `test:`, `chore:`, `ci:` commits
+
+### Troubleshooting
+
+**Issue: "git is in a dirty state"**
+```bash
+# Check what's dirty
+git status
+
+# Clean up:
+git add .gitignore  # Add ignored files
+git rm deleted-file.md  # Remove deleted files
+git restore modified-file  # Restore unwanted changes
+git commit -m "chore: cleanup"
+```
+
+**Issue: "missing GITHUB_TOKEN"**
+```bash
+# Ensure GitHub CLI is authenticated
+gh auth status
+
+# Export token
+export GITHUB_TOKEN=$(gh auth token)
+```
+
+**Issue: Tests failing**
+```bash
+# Run tests locally first
+go test ./...
+
+# Fix failing tests before releasing
+```
+
+**Issue: Tag already exists**
+```bash
+# Delete local and remote tag
+git tag -d 0.2.0
+git push origin :0.2.0
+
+# Recreate with new commit
+git tag -a 0.2.0 -m "Release 0.2.0"
+```
+
+### Release Artifacts
+
+Each release includes:
+
+| File | Description | Size |
+|------|-------------|------|
+| `bundle-inspector-Darwin-arm64` | macOS Apple Silicon binary | ~5 MB |
+| `bundle-inspector-Darwin-x86_64` | macOS Intel binary | ~5 MB |
+| `bundle-inspector-Linux-x86_64` | Linux x86_64 binary | ~5 MB |
+| `checksums.txt` | SHA256 checksums for verification | <1 KB |
+
+### Version Verification
+
+After release, users can verify the version:
+
+```bash
+./bundle-inspector version
+# Output: Bundle Inspector 0.2.0
+```
+
+### Best Practices
+
+1. **Test before release**: Always run `go test ./...` locally
+2. **Clean git state**: Ensure no uncommitted changes
+3. **Meaningful versions**: Follow semantic versioning (MAJOR.MINOR.PATCH)
+4. **Descriptive tags**: Include brief release notes in tag annotation
+5. **Verify assets**: Check that all binaries uploaded successfully
+6. **Test binaries**: Download and test at least one binary per platform
 
 ## Future Enhancements (Not Yet Implemented)
 
