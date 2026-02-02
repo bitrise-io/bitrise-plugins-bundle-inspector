@@ -562,7 +562,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 <h2>Bundle Treemap</h2>
                 <p class="treemap-hint">Click to drill down into folders. Use mouse wheel to zoom. Use breadcrumb to navigate back.</p>
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search files (e.g., .png, Framework, Assets.car)">
+                    <input type="text" id="search-input" placeholder="Search files (e.g., .png, Frameworks/, &#96;Assets.car&#96;)">
                 </div>
                 <div id="treemap"></div>
                 <div class="legend">
@@ -640,6 +640,11 @@ const htmlTemplate = `<!DOCTYPE html>
         let treemapChart = null;
         let categoryChart = null;
         let extensionChart = null;
+
+        // Store original data for search filtering
+        let originalFileTree = null;
+        let originalCategories = null;
+        let originalExtensions = null;
 
         // Initialize theme from localStorage
         function initTheme() {
@@ -1442,6 +1447,17 @@ const htmlTemplate = `<!DOCTYPE html>
             // Initialize theme first
             initTheme();
 
+            // Store original data for search filtering (deep copy)
+            if (reportData.fileTree) {
+                originalFileTree = JSON.parse(JSON.stringify(reportData.fileTree));
+            }
+            if (reportData.categories) {
+                originalCategories = JSON.parse(JSON.stringify(reportData.categories));
+            }
+            if (reportData.extensions) {
+                originalExtensions = JSON.parse(JSON.stringify(reportData.extensions));
+            }
+
             // Create charts and store instances
             if (reportData.fileTree) {
                 treemapChart = createTreemap(reportData.fileTree);
@@ -1457,11 +1473,263 @@ const htmlTemplate = `<!DOCTYPE html>
             }
         });
 
-        // Search functionality (basic implementation)
+        // Parse search query to detect special syntax
+        function parseSearchQuery(query) {
+            if (!query) {
+                return { mode: 'empty', query: '' };
+            }
+
+            // Check for backtick syntax: ` + "`" + `moduleName` + "`" + `
+            const backtickMatch = query.match(/` + "`" + `([^` + "`" + `]+)` + "`" + `/);
+            if (backtickMatch) {
+                return { mode: 'backtick', query: backtickMatch[1].toLowerCase() };
+            }
+
+            // Check for path-specific syntax: contains /
+            if (query.includes('/')) {
+                return { mode: 'path', query: query.toLowerCase() };
+            }
+
+            // Default: basic search
+            return { mode: 'basic', query: query.toLowerCase() };
+        }
+
+        // Deep copy a tree node
+        function deepCopyNode(node) {
+            const copy = {
+                name: node.name,
+                value: node.value
+            };
+            if (node.path) copy.path = node.path;
+            if (node.fileType) copy.fileType = node.fileType;
+            if (node.itemStyle) copy.itemStyle = JSON.parse(JSON.stringify(node.itemStyle));
+            if (node.isDuplicate) copy.isDuplicate = node.isDuplicate;
+            if (node.children && node.children.length > 0) {
+                copy.children = node.children.map(deepCopyNode);
+            }
+            return copy;
+        }
+
+        // Filter tree based on search query
+        function filterTreeByQuery(tree, searchMode, query) {
+            if (!tree || searchMode === 'empty') {
+                return tree;
+            }
+
+            // Backtick mode: find exact node match by name, return it with all children
+            if (searchMode === 'backtick') {
+                function findNodeByName(node, targetName) {
+                    if (node.name.toLowerCase() === targetName) {
+                        return deepCopyNode(node);
+                    }
+                    if (node.children) {
+                        for (const child of node.children) {
+                            const found = findNodeByName(child, targetName);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                }
+
+                const foundNode = findNodeByName(tree, query);
+                if (foundNode) {
+                    // Wrap in a root node to maintain structure
+                    return {
+                        name: tree.name,
+                        value: foundNode.value,
+                        children: [foundNode]
+                    };
+                }
+                return null;
+            }
+
+            // Path-specific mode: only include nodes whose path starts with the query
+            if (searchMode === 'path') {
+                function filterByPath(node) {
+                    const nodePath = (node.path || '').toLowerCase();
+                    const nodeName = node.name.toLowerCase();
+
+                    // Check if this node's path matches
+                    const pathMatches = nodePath.includes(query) || nodeName.includes(query);
+
+                    if (!node.children || node.children.length === 0) {
+                        // Leaf node: include if path matches
+                        return pathMatches ? deepCopyNode(node) : null;
+                    }
+
+                    // Parent node: recursively filter children
+                    const filteredChildren = node.children
+                        .map(filterByPath)
+                        .filter(child => child !== null);
+
+                    if (filteredChildren.length > 0) {
+                        const copy = deepCopyNode(node);
+                        copy.children = filteredChildren;
+                        // Recalculate value based on filtered children
+                        copy.value = filteredChildren.reduce((sum, child) => sum + child.value, 0);
+                        return copy;
+                    }
+
+                    return null;
+                }
+
+                const filtered = filterByPath(tree);
+                return filtered;
+            }
+
+            // Basic mode: match against name, path, extension, fileType
+            if (searchMode === 'basic') {
+                function filterBasic(node) {
+                    const nodeName = node.name.toLowerCase();
+                    const nodePath = (node.path || '').toLowerCase();
+                    const nodeType = (node.fileType || '').toLowerCase();
+
+                    // Check if this node matches
+                    const matches = nodeName.includes(query) ||
+                                  nodePath.includes(query) ||
+                                  nodeType.includes(query);
+
+                    if (!node.children || node.children.length === 0) {
+                        // Leaf node: include if matches
+                        return matches ? deepCopyNode(node) : null;
+                    }
+
+                    // Parent node: recursively filter children
+                    const filteredChildren = node.children
+                        .map(filterBasic)
+                        .filter(child => child !== null);
+
+                    if (filteredChildren.length > 0 || matches) {
+                        const copy = deepCopyNode(node);
+                        if (filteredChildren.length > 0) {
+                            copy.children = filteredChildren;
+                            // Recalculate value based on filtered children
+                            copy.value = filteredChildren.reduce((sum, child) => sum + child.value, 0);
+                        }
+                        return copy;
+                    }
+
+                    return null;
+                }
+
+                const filtered = filterBasic(tree);
+                return filtered;
+            }
+
+            return tree;
+        }
+
+        // Calculate categories and extensions from filtered tree
+        function calculateStatsFromTree(tree) {
+            const categoryMap = {};
+            const extensionMap = {};
+
+            function traverse(node) {
+                // Count file types for categories
+                if (node.fileType && node.value) {
+                    const type = node.fileType;
+                    categoryMap[type] = (categoryMap[type] || 0) + node.value;
+                }
+
+                // Count extensions (only for leaf nodes)
+                if ((!node.children || node.children.length === 0) && node.name && node.value) {
+                    const lastDot = node.name.lastIndexOf('.');
+                    if (lastDot > 0) {
+                        const ext = node.name.substring(lastDot);
+                        extensionMap[ext] = (extensionMap[ext] || 0) + node.value;
+                    } else {
+                        // Files without extension
+                        extensionMap['(no ext)'] = (extensionMap['(no ext)'] || 0) + node.value;
+                    }
+                }
+
+                if (node.children) {
+                    node.children.forEach(traverse);
+                }
+            }
+
+            traverse(tree);
+
+            // Convert maps to sorted arrays
+            const categories = Object.entries(categoryMap)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value);
+
+            const extensions = Object.entries(extensionMap)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 10); // Top 10 extensions
+
+            return { categories, extensions };
+        }
+
+        // Update charts with filtered data
+        function updateChartsWithFilteredData(filteredTree, categories, extensions) {
+            if (treemapChart && filteredTree) {
+                const treemapOption = getTreemapOption(filteredTree);
+                treemapChart.setOption(treemapOption, true);
+            }
+            if (categoryChart && categories && categories.length > 0) {
+                const categoryOption = getCategoryChartOption(categories);
+                categoryChart.setOption(categoryOption, true);
+            }
+            if (extensionChart && extensions && extensions.length > 0) {
+                const extensionOption = getExtensionChartOption(extensions);
+                extensionChart.setOption(extensionOption, true);
+            }
+        }
+
+        // Search functionality with debouncing
+        let searchTimeout = null;
         document.getElementById('search-input').addEventListener('input', function(e) {
-            const query = e.target.value.toLowerCase();
-            // TODO: Implement search highlighting in treemap
-            console.log('Search:', query);
+            const query = e.target.value.trim();
+
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // Debounce search (300ms)
+            searchTimeout = setTimeout(function() {
+                const parsed = parseSearchQuery(query);
+
+                // Empty search: restore original data
+                if (parsed.mode === 'empty') {
+                    if (originalFileTree) {
+                        updateChartsWithFilteredData(
+                            JSON.parse(JSON.stringify(originalFileTree)),
+                            JSON.parse(JSON.stringify(originalCategories)),
+                            JSON.parse(JSON.stringify(originalExtensions))
+                        );
+                    }
+                    return;
+                }
+
+                // Filter the tree
+                const filteredTree = filterTreeByQuery(
+                    JSON.parse(JSON.stringify(originalFileTree)),
+                    parsed.mode,
+                    parsed.query
+                );
+
+                // If no results, show empty state
+                if (!filteredTree || (filteredTree.children && filteredTree.children.length === 0)) {
+                    // Create an empty tree structure
+                    const emptyTree = {
+                        name: 'No results',
+                        value: 0,
+                        children: []
+                    };
+                    updateChartsWithFilteredData(emptyTree, [], []);
+                    return;
+                }
+
+                // Recalculate stats from filtered tree
+                const stats = calculateStatsFromTree(filteredTree);
+
+                // Update all charts
+                updateChartsWithFilteredData(filteredTree, stats.categories, stats.extensions);
+            }, 300);
         });
     </script>
 </body>
