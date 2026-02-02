@@ -128,11 +128,8 @@ func (d *SmallFilesDetector) Detect(rootPath string) ([]types.Optimization, erro
 		}
 
 		var totalWasted int64
-		var filePaths []string
-
 		for _, file := range files {
 			totalWasted += file.WastedSize
-			filePaths = append(filePaths, mapper.ToRelative(file.Path))
 		}
 
 		// Only report if waste is significant (> 10KB)
@@ -140,13 +137,21 @@ func (d *SmallFilesDetector) Detect(rootPath string) ([]types.Optimization, erro
 			continue
 		}
 
-		// Sort file paths
-		sort.Strings(filePaths)
+		// Sort files by size (smallest first) to show the most problematic files
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Size < files[j].Size
+		})
 
-		// Limit to top 20 files in the list to avoid overwhelming output
-		displayFiles := filePaths
-		if len(displayFiles) > 20 {
-			displayFiles = displayFiles[:20]
+		// Limit to top 20 smallest files to avoid overwhelming output
+		displayCount := len(files)
+		if displayCount > 20 {
+			displayCount = 20
+		}
+
+		// Extract paths from sorted, limited list
+		var displayFiles []string
+		for i := 0; i < displayCount; i++ {
+			displayFiles = append(displayFiles, mapper.ToRelative(files[i].Path))
 		}
 
 		// Create descriptive title and action based on file type
