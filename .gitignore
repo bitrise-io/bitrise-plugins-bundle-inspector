@@ -62,3 +62,5 @@ bundle-analysis-*.json
 wikipedia-analysis.*
 *-analysis.md
 *-analysis.json
+bin/
+.claude/settings.local.json
