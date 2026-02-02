@@ -27,26 +27,54 @@ func (f *MarkdownFormatter) Format(w io.Writer, report *types.Report) error {
 	// Group optimizations by category
 	categoryGroups := getCategoryGroups(report.Optimizations)
 
-	// Write optimizations by category in order
-	categories := []struct {
-		key   string
+	// Category metadata with names and emojis
+	categoryInfo := map[string]struct {
 		name  string
 		emoji string
-		open  bool
 	}{
-		{"strip-symbols", "Strip Binary Symbols", "🔧", false},
-		{"frameworks", "Unused Frameworks", "📦", false},
-		{"duplicates", "Duplicate Files", "🔄", false},
-		{"image-optimization", "Image Optimization", "🖼️", false},
-		{"loose-images", "Loose Images", "📸", false},
-		{"unnecessary-files", "Unnecessary Files", "🗑️", false},
+		"strip-symbols":      {"Strip Binary Symbols", "🔧"},
+		"frameworks":         {"Unused Frameworks", "📦"},
+		"duplicates":         {"Duplicate Files", "🔄"},
+		"image-optimization": {"Image Optimization", "🖼️"},
+		"loose-images":       {"Loose Images", "📸"},
+		"unnecessary-files":  {"Unnecessary Files", "🗑️"},
+		"small-files":        {"Small Files", "📄"},
 	}
 
-	for _, cat := range categories {
-		if opts, exists := categoryGroups[cat.key]; exists && len(opts) > 0 {
-			if err := f.writeOptimizations(w, opts, cat.name, cat.emoji, cat.open); err != nil {
-				return err
-			}
+	// Sort categories by total savings (highest first)
+	type categoryWithSavings struct {
+		key     string
+		opts    []types.Optimization
+		savings int64
+	}
+
+	var sortedCategories []categoryWithSavings
+	for key, opts := range categoryGroups {
+		if len(opts) > 0 {
+			savings := calculateSavings(opts)
+			sortedCategories = append(sortedCategories, categoryWithSavings{
+				key:     key,
+				opts:    opts,
+				savings: savings,
+			})
+		}
+	}
+
+	// Sort by savings descending
+	sort.Slice(sortedCategories, func(i, j int) bool {
+		return sortedCategories[i].savings > sortedCategories[j].savings
+	})
+
+	// Write optimizations by category in sorted order
+	for _, cat := range sortedCategories {
+		info := categoryInfo[cat.key]
+		if info.name == "" {
+			// Default for unknown categories
+			info.name = strings.Title(strings.ReplaceAll(cat.key, "-", " "))
+			info.emoji = "💡"
+		}
+		if err := f.writeOptimizations(w, cat.opts, info.name, info.emoji, false); err != nil {
+			return err
 		}
 	}
 
