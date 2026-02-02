@@ -2044,9 +2044,9 @@ const htmlTemplate = `<!DOCTYPE html>
                     sortable: false,
                     render: (row) => {
                         const locationsList = row.locationsArray.map(loc =>
-                            '<div class="text-xs font-mono text-muted-foreground py-0.5">' + loc + '</div>'
+                            '<div class="text-xs font-mono text-muted-foreground py-0.5 break-all">' + loc + '</div>'
                         ).join('');
-                        return '<div class="space-y-0.5 py-1">' + locationsList + '</div>';
+                        return '<div class="space-y-0.5 py-1 max-w-2xl">' + locationsList + '</div>';
                     }
                 },
                 {
