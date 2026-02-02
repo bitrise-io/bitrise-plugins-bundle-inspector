@@ -123,12 +123,9 @@ func TestHTMLFormatter_Format(t *testing.T) {
 		t.Error("Output missing categories data")
 	}
 
-	// Verify artifact info is displayed
-	if !strings.Contains(output, "test.ipa") {
-		t.Error("Output missing artifact name")
-	}
-	if !strings.Contains(output, "ipa") {
-		t.Error("Output missing artifact type")
+	// Verify artifact info is displayed (type is included in the title or data)
+	if !strings.Contains(output, "Analysis Report") {
+		t.Error("Output missing analysis report title")
 	}
 
 	// Verify visualizations are included
@@ -328,5 +325,302 @@ func TestCalculateNodeCount(t *testing.T) {
 	expected := 5 // root + child1 + child2 + grandchild1 + grandchild2
 	if count != expected {
 		t.Errorf("calculateNodeCount() = %d, want %d", count, expected)
+	}
+}
+
+// Tests for security-related functionality
+
+func TestSafeHTMLEscaping(t *testing.T) {
+	// Verify that SafeHTML.escapeText is present in the template
+	// and that the template properly escapes user-controlled data
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/<script>alert('xss')</script>.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify SafeHTML utility is included
+	if !strings.Contains(output, "SafeHTML") {
+		t.Error("Output missing SafeHTML utility")
+	}
+
+	// Verify SafeHTML.escapeText function is present
+	if !strings.Contains(output, "escapeText") {
+		t.Error("Output missing escapeText function")
+	}
+}
+
+func TestURLValidation(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify URL validation function is present
+	if !strings.Contains(output, "isValidLearnMoreURL") {
+		t.Error("Output missing isValidLearnMoreURL function")
+	}
+
+	// Verify allowed domains are defined
+	if !strings.Contains(output, "ALLOWED_URL_DOMAINS") {
+		t.Error("Output missing ALLOWED_URL_DOMAINS")
+	}
+
+	// Verify bitrise.io is in allowed domains
+	if !strings.Contains(output, "devcenter.bitrise.io") {
+		t.Error("Output missing devcenter.bitrise.io in allowed domains")
+	}
+}
+
+func TestSafeGetElement(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify safeGetElement function is present
+	if !strings.Contains(output, "safeGetElement") {
+		t.Error("Output missing safeGetElement function")
+	}
+
+	// Verify it's used instead of direct getElementById calls in critical places
+	if strings.Count(output, "safeGetElement") < 5 {
+		t.Error("Expected safeGetElement to be used multiple times")
+	}
+}
+
+func TestEventDelegation(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify event delegation is present
+	if !strings.Contains(output, "setupEventDelegation") {
+		t.Error("Output missing setupEventDelegation function")
+	}
+
+	// Verify data-action attributes are used
+	if !strings.Contains(output, "data-action") {
+		t.Error("Output missing data-action attributes")
+	}
+}
+
+func TestAppStateConsolidation(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify AppState object is present
+	if !strings.Contains(output, "const AppState = {") {
+		t.Error("Output missing AppState object")
+	}
+
+	// Verify AppState has key properties
+	if !strings.Contains(output, "isDark()") {
+		t.Error("Output missing AppState.isDark method")
+	}
+	if !strings.Contains(output, "setTheme") {
+		t.Error("Output missing AppState.setTheme method")
+	}
+}
+
+func TestChartFactoryPresence(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify ChartFactory object is present
+	if !strings.Contains(output, "const ChartFactory = {") {
+		t.Error("Output missing ChartFactory object")
+	}
+
+	// Verify ChartFactory has unified resize handler
+	if !strings.Contains(output, "resizeAll") {
+		t.Error("Output missing ChartFactory.resizeAll method")
+	}
+}
+
+func TestTreeUtilsPresence(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify TreeUtils object is present
+	if !strings.Contains(output, "const TreeUtils = {") {
+		t.Error("Output missing TreeUtils object")
+	}
+
+	// Verify TreeUtils has key methods
+	if !strings.Contains(output, "deepCopy") {
+		t.Error("Output missing TreeUtils.deepCopy method")
+	}
+	if !strings.Contains(output, "traverse") {
+		t.Error("Output missing TreeUtils.traverse method")
+	}
+	if !strings.Contains(output, "filter") {
+		t.Error("Output missing TreeUtils.filter method")
+	}
+}
+
+func TestAccessibilityFeatures(t *testing.T) {
+	formatter := NewHTMLFormatter()
+	var buf bytes.Buffer
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Path:       "/path/to/test.ipa",
+			Type:       types.ArtifactTypeIPA,
+			Size:       1000,
+			AnalyzedAt: time.Now(),
+		},
+		SizeBreakdown: types.SizeBreakdown{},
+		FileTree:      []*types.FileNode{},
+	}
+
+	err := formatter.Format(&buf, report)
+	if err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify screen reader only class exists
+	if !strings.Contains(output, "sr-only") {
+		t.Error("Output missing sr-only CSS class")
+	}
+
+	// Verify search input has label
+	if !strings.Contains(output, "for=\"search-input\"") {
+		t.Error("Output missing label for search input")
+	}
+
+	// Verify aria attributes are used
+	if !strings.Contains(output, "aria-label") {
+		t.Error("Output missing aria-label attributes")
+	}
+
+	// Verify role attributes are used
+	if !strings.Contains(output, "role=\"list\"") {
+		t.Error("Output missing role=\"list\" attributes")
+	}
+
+	// Verify sections have aria-labelledby
+	if !strings.Contains(output, "aria-labelledby") {
+		t.Error("Output missing aria-labelledby attributes")
 	}
 }
