@@ -361,7 +361,10 @@ const htmlTemplate = `<!DOCTYPE html>
 
         <!-- Insights Section -->
         <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6" id="insights-section">
-            <h2 class="text-2xl font-bold tracking-tight mb-6">💡 Insights & Optimization Opportunities</h2>
+            <h2 class="text-2xl font-bold tracking-tight mb-6 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
+                Insights & Optimization Opportunities
+            </h2>
             <div id="insights-list" class="space-y-4"></div>
         </div>
 
@@ -1061,35 +1064,47 @@ const htmlTemplate = `<!DOCTYPE html>
             return chart;
         }
 
+        // SVG icons for categories
+        const icons = {
+            lightbulb: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>',
+            wrench: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+            package: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4l-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+            copy: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+            image: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+            camera: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+            trash: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+            checkCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+        };
+
         // Category metadata with icons and learn more links
         const categoryMetadata = {
             'strip-symbols': {
-                icon: '🔧',
+                icon: icons.wrench,
                 title: 'Strip Binary Symbols',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/strip-debug-symbols.html'
             },
             'frameworks': {
-                icon: '📦',
+                icon: icons.package,
                 title: 'Unused Frameworks',
                 learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
             },
             'duplicates': {
-                icon: '🔄',
+                icon: icons.copy,
                 title: 'Duplicate Files',
                 learnMore: 'https://devcenter.bitrise.io/en/builds/build-cache.html'
             },
             'image-optimization': {
-                icon: '🖼️',
+                icon: icons.image,
                 title: 'Image Optimization',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             },
             'loose-images': {
-                icon: '📸',
+                icon: icons.camera,
                 title: 'Loose Images',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             },
             'unnecessary-files': {
-                icon: '🗑️',
+                icon: icons.trash,
                 title: 'Unnecessary Files',
                 learnMore: 'https://devcenter.bitrise.io/en/deploying/ios-deployment/optimizing-app-size.html'
             }
@@ -1127,7 +1142,7 @@ const htmlTemplate = `<!DOCTYPE html>
             const container = document.getElementById('insights-list');
 
             if (!optimizations || optimizations.length === 0) {
-                container.innerHTML = '<div class="text-center py-10 text-lg font-semibold text-success">✅ No optimization opportunities found! Your bundle is well optimized.</div>';
+                container.innerHTML = '<div class="flex flex-col items-center justify-center py-10 gap-3"><span class="text-success w-12 h-12">' + icons.checkCircle.replace('width="24" height="24"', 'width="48" height="48"') + '</span><span class="text-lg font-semibold text-success">No optimization opportunities found!</span><span class="text-sm text-muted-foreground">Your bundle is well optimized.</span></div>';
                 return;
             }
 
@@ -1142,7 +1157,7 @@ const htmlTemplate = `<!DOCTYPE html>
             Object.keys(groups).forEach((category, index) => {
                 const group = groups[category];
                 const metadata = categoryMetadata[category] || {
-                    icon: '💡',
+                    icon: icons.lightbulb,
                     title: category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                     learnMore: 'https://devcenter.bitrise.io'
                 };
@@ -1153,7 +1168,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
                 html += '<div class="insight-card rounded-lg border bg-card overflow-hidden transition-all duration-200 hover:shadow-md" id="insight-' + index + '">';
                 html += '  <div class="flex items-start gap-3 p-4 cursor-pointer select-none" onclick="toggleInsight(' + index + ')">';
-                html += '    <div class="text-2xl flex-shrink-0 leading-none mt-0.5">' + metadata.icon + '</div>';
+                html += '    <div class="flex-shrink-0 w-6 h-6 text-primary">' + metadata.icon + '</div>';
                 html += '    <div class="flex-1 min-w-0">';
                 html += '      <div class="flex items-center justify-between gap-2 mb-1.5">';
                 html += '        <h3 class="text-base font-semibold leading-none">' + metadata.title + '</h3>';
