@@ -128,14 +128,32 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
+	// Extract app icon
+	iconData, err := util.ExtractIconFromDirectory(path)
+	if err != nil {
+		a.Logger.Warn("Failed to extract icon: %v", err)
+		// Continue without icon - it's not critical
+	}
+
+	// Build artifact info
+	artifactInfo := types.ArtifactInfo{
+		Path:             path,
+		Type:             types.ArtifactTypeApp,
+		Size:             totalSize, // For .app, size is uncompressed
+		UncompressedSize: totalSize,
+		AnalyzedAt:       time.Now(),
+		IconData:         iconData,
+	}
+
+	// Add app metadata to artifact info if available
+	if appMetadata != nil {
+		artifactInfo.AppName = appMetadata.AppName
+		artifactInfo.BundleID = appMetadata.BundleID
+		artifactInfo.Version = appMetadata.Version
+	}
+
 	report := &types.Report{
-		ArtifactInfo: types.ArtifactInfo{
-			Path:             path,
-			Type:             types.ArtifactTypeApp,
-			Size:             totalSize, // For .app, size is uncompressed
-			UncompressedSize: totalSize,
-			AnalyzedAt:       time.Now(),
-		},
+		ArtifactInfo:  artifactInfo,
 		SizeBreakdown: sizeBreakdown,
 		FileTree:      fileTree,
 		LargestFiles:  largestFiles,

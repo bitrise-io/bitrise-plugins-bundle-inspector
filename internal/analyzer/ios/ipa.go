@@ -197,15 +197,33 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
+	// Extract app icon
+	iconData, err := util.ExtractIconFromZip(path, "ipa")
+	if err != nil {
+		a.Logger.Warn("Failed to extract icon: %v", err)
+		// Continue without icon - it's not critical
+	}
+
+	// Build artifact info
+	artifactInfo := types.ArtifactInfo{
+		Path:             path,
+		Type:             types.ArtifactTypeIPA,
+		Size:             info.Size(),
+		UncompressedSize: analysis.totalSize,
+		AnalyzedAt:       time.Now(),
+		IconData:         iconData,
+	}
+
+	// Add app metadata to artifact info if available
+	if analysis.appMetadata != nil {
+		artifactInfo.AppName = analysis.appMetadata.AppName
+		artifactInfo.BundleID = analysis.appMetadata.BundleID
+		artifactInfo.Version = analysis.appMetadata.Version
+	}
+
 	// Build final report
 	report := &types.Report{
-		ArtifactInfo: types.ArtifactInfo{
-			Path:             path,
-			Type:             types.ArtifactTypeIPA,
-			Size:             info.Size(),
-			UncompressedSize: analysis.totalSize,
-			AnalyzedAt:       time.Now(),
-		},
+		ArtifactInfo:  artifactInfo,
 		SizeBreakdown: analysis.sizeBreakdown,
 		FileTree:      analysis.fileTree,
 		LargestFiles:  analysis.largestFiles,

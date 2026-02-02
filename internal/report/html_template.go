@@ -243,16 +243,22 @@ const htmlTemplate = `<!DOCTYPE html>
         <div class="w-full max-w-7xl mx-auto px-6 py-6 space-y-6">
         <!-- App Info Card -->
         <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <h1 class="scroll-m-20 text-3xl font-semibold tracking-tight">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
+            <div class="flex items-center gap-4 mb-4">
+                {{if .IconData}}
+                <div class="flex-shrink-0">
+                    <img src="{{.IconData}}" alt="App Icon" class="w-16 h-16 rounded-xl shadow-md" />
+                </div>
+                {{end}}
+                <div class="flex-grow">
+                    <h1 class="scroll-m-20 text-3xl font-semibold tracking-tight">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
+                    {{if .BundleID}}<p class="text-sm text-muted-foreground mt-1 font-mono">{{.BundleID}}</p>{{end}}
+                </div>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                         <!-- App Info -->
                         <div class="space-y-4">
                             <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">App Info</h3>
                             <div class="space-y-3">
-                                {{if .BundleID}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Bundle ID</span>
-                                    <span class="text-sm font-semibold text-right">{{.BundleID}}</span>
-                                </div>{{end}}
                                 {{if .Platform}}<div class="flex justify-between items-baseline gap-4">
                                     <span class="text-sm text-muted-foreground font-medium">Platform</span>
                                     <span class="text-sm font-semibold text-right">{{.Platform}}</span>
@@ -260,6 +266,10 @@ const htmlTemplate = `<!DOCTYPE html>
                                 {{if .Version}}<div class="flex justify-between items-baseline gap-4">
                                     <span class="text-sm text-muted-foreground font-medium">Version</span>
                                     <span class="text-sm font-semibold text-right">{{.Version}}</span>
+                                </div>{{end}}
+                                {{if .ArtifactType}}<div class="flex justify-between items-baseline gap-4">
+                                    <span class="text-sm text-muted-foreground font-medium">Type</span>
+                                    <span class="text-sm font-semibold text-right uppercase">{{.ArtifactType}}</span>
                                 </div>{{end}}
                             </div>
                         </div>

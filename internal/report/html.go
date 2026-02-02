@@ -58,6 +58,7 @@ type templateData struct {
 	TotalSavings       string
 	SavingsPercentage  string
 	Timestamp          string
+	IconData           template.URL // Base64-encoded icon data URI (safe for src attribute)
 	DataJSON           template.JS
 	NodeCount          int
 	PerformanceWarning bool
@@ -100,25 +101,34 @@ func (f *HTMLFormatter) prepareTemplateData(report *types.Report) templateData {
 	}
 
 	// Extract metadata fields with safe type assertions
-	appName := ""
-	bundleID := ""
+	// Prefer ArtifactInfo fields over metadata
+	appName := report.ArtifactInfo.AppName
+	bundleID := report.ArtifactInfo.BundleID
+	version := report.ArtifactInfo.Version
+	iconData := report.ArtifactInfo.IconData
 	platform := ""
-	version := ""
 	branch := ""
 	commitSHA := ""
 
+	// Fall back to metadata if artifact info fields are empty
 	if report.Metadata != nil {
-		if v, ok := report.Metadata["app_name"].(string); ok {
-			appName = v
+		if appName == "" {
+			if v, ok := report.Metadata["app_name"].(string); ok {
+				appName = v
+			}
 		}
-		if v, ok := report.Metadata["bundle_id"].(string); ok {
-			bundleID = v
+		if bundleID == "" {
+			if v, ok := report.Metadata["bundle_id"].(string); ok {
+				bundleID = v
+			}
+		}
+		if version == "" {
+			if v, ok := report.Metadata["version"].(string); ok {
+				version = v
+			}
 		}
 		if v, ok := report.Metadata["platform"].(string); ok {
 			platform = v
-		}
-		if v, ok := report.Metadata["version"].(string); ok {
-			version = v
 		}
 		if v, ok := report.Metadata["git_branch"].(string); ok {
 			branch = v
@@ -154,6 +164,7 @@ func (f *HTMLFormatter) prepareTemplateData(report *types.Report) templateData {
 		TotalSavings:       util.FormatBytes(report.TotalSavings),
 		SavingsPercentage:  savingsPercentage,
 		Timestamp:          report.ArtifactInfo.AnalyzedAt.Format(time.RFC3339),
+		IconData:           template.URL(iconData),
 		DataJSON:           template.JS(dataJSON),
 		NodeCount:          nodeCount,
 		PerformanceWarning: performanceWarning,

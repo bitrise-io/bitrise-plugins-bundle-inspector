@@ -21,6 +21,10 @@ type ArtifactInfo struct {
 	Size             int64        `json:"size"`
 	UncompressedSize int64        `json:"uncompressed_size,omitempty"`
 	AnalyzedAt       time.Time    `json:"analyzed_at"`
+	IconData         string       `json:"icon_data,omitempty"`  // Base64-encoded icon (data URI format)
+	AppName          string       `json:"app_name,omitempty"`   // App display name
+	BundleID         string       `json:"bundle_id,omitempty"`  // Bundle/package identifier
+	Version          string       `json:"version,omitempty"`    // App version
 }
 
 // SizeBreakdown provides a categorized breakdown of artifact size.

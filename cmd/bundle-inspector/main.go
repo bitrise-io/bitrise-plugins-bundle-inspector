@@ -24,8 +24,8 @@ var (
 )
 
 var (
-	outputFormat      string
-	outputFile        string
+	outputFormats     string // Comma-separated list of formats
+	outputFiles       string // Comma-separated list of filenames (optional)
 	includeDuplicates bool
 	noAutoDetect      bool
 )
@@ -73,14 +73,87 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 
 	// Add flags
-	analyzeCmd.Flags().StringVarP(&outputFormat, "output", "o", "text",
-		"Output format (text, json, markdown, html)")
-	analyzeCmd.Flags().StringVarP(&outputFile, "output-file", "f", "",
-		"Override default output filename (default: bundle-analysis-<artifact>.<format>)")
+	analyzeCmd.Flags().StringVarP(&outputFormats, "output", "o", "text",
+		"Output format(s) - comma-separated for multiple (text, json, markdown, html)")
+	analyzeCmd.Flags().StringVarP(&outputFiles, "output-file", "f", "",
+		"Output filename(s) - comma-separated when using multiple formats (default: auto-generated)")
 	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true,
 		"Enable duplicate file detection")
 	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false,
 		"Disable auto-detection of bundle path from Bitrise environment")
+}
+
+// parseFormats parses and validates comma-separated output formats
+func parseFormats(formatsStr string) ([]string, error) {
+	formats := strings.Split(formatsStr, ",")
+	validFormats := map[string]bool{
+		"text":     true,
+		"json":     true,
+		"markdown": true,
+		"html":     true,
+	}
+
+	var result []string
+	seen := make(map[string]bool)
+
+	for _, format := range formats {
+		format = strings.TrimSpace(format)
+		if format == "" {
+			continue
+		}
+
+		// Check if valid
+		if !validFormats[format] {
+			return nil, fmt.Errorf("unsupported output format: %s (valid formats: text, json, markdown, html)", format)
+		}
+
+		// Check for duplicates
+		if seen[format] {
+			continue // Skip duplicates silently
+		}
+
+		seen[format] = true
+		result = append(result, format)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no valid output formats specified")
+	}
+
+	return result, nil
+}
+
+// parseOutputFiles parses comma-separated output filenames
+func parseOutputFiles(filesStr string) []string {
+	if filesStr == "" {
+		return nil
+	}
+
+	files := strings.Split(filesStr, ",")
+	var result []string
+	for _, file := range files {
+		file = strings.TrimSpace(file)
+		if file != "" {
+			result = append(result, file)
+		}
+	}
+	return result
+}
+
+// getFileExtension returns the appropriate extension for a format
+func getFileExtension(format string) string {
+	switch format {
+	case "json":
+		return "json"
+	case "markdown":
+		return "md"
+	case "text":
+		return "txt"
+	case "html":
+		return "html"
+	default:
+		return "txt"
+	}
 }
 
 // detectArtifactPath determines the artifact path from arguments or auto-detection
@@ -110,43 +183,39 @@ func detectArtifactPath(args []string) (string, error) {
 	return detectedPath, nil
 }
 
-// determineOutputFile generates the output filename based on format and artifact
-func determineOutputFile(artifactPath string) string {
-	if outputFile != "" {
-		return outputFile
+// determineOutputFiles generates output filenames for all formats
+func determineOutputFiles(artifactPath string, formats []string, explicitFiles []string) ([]string, error) {
+	// If explicit filenames provided, validate count matches formats
+	if len(explicitFiles) > 0 {
+		if len(explicitFiles) != len(formats) {
+			return nil, fmt.Errorf("number of output files (%d) must match number of formats (%d)", len(explicitFiles), len(formats))
+		}
+		return explicitFiles, nil
 	}
 
-	// Extract artifact name from path
+	// Generate default filenames
 	artifactName := filepath.Base(artifactPath)
-	// Remove extension
 	artifactName = strings.TrimSuffix(artifactName, filepath.Ext(artifactName))
 
-	// Generate default filename: bundle-analysis-<artifact>.<format>
-	var extension string
-	switch outputFormat {
-	case "json":
-		extension = "json"
-	case "markdown":
-		extension = "md"
-	case "text":
-		extension = "txt"
-	case "html":
-		extension = "html"
-	default:
-		extension = "txt"
+	var filenames []string
+	for _, format := range formats {
+		extension := getFileExtension(format)
+		filename := fmt.Sprintf("bundle-analysis-%s.%s", artifactName, extension)
+		filenames = append(filenames, filename)
 	}
-	return fmt.Sprintf("bundle-analysis-%s.%s", artifactName, extension)
+
+	return filenames, nil
 }
 
 // writeReport writes the analysis report to a file using the specified format
-func writeReport(filename string, analysisReport *types.Report) error {
+func writeReport(filename string, format string, analysisReport *types.Report) error {
 	f, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer f.Close()
 
-	switch outputFormat {
+	switch format {
 	case "text":
 		formatter := report.NewTextFormatter()
 		if err := formatter.Format(f, analysisReport); err != nil {
@@ -168,7 +237,7 @@ func writeReport(filename string, analysisReport *types.Report) error {
 			return fmt.Errorf("failed to format output: %w", err)
 		}
 	default:
-		return fmt.Errorf("unsupported output format: %s", outputFormat)
+		return fmt.Errorf("unsupported output format: %s", format)
 	}
 
 	return nil
@@ -177,6 +246,21 @@ func writeReport(filename string, analysisReport *types.Report) error {
 func runAnalyze(cmd *cobra.Command, args []string) error {
 	// Determine artifact path
 	artifactPath, err := detectArtifactPath(args)
+	if err != nil {
+		return err
+	}
+
+	// Parse and validate output formats
+	formats, err := parseFormats(outputFormats)
+	if err != nil {
+		return err
+	}
+
+	// Parse explicit output filenames (if provided)
+	explicitFiles := parseOutputFiles(outputFiles)
+
+	// Generate output filenames
+	filenames, err := determineOutputFiles(artifactPath, formats, explicitFiles)
 	if err != nil {
 		return err
 	}
@@ -196,13 +280,15 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("analysis failed: %w", err)
 	}
 
-	// Write report to file
-	outputFilename := determineOutputFile(artifactPath)
-	if err := writeReport(outputFilename, analysisReport); err != nil {
-		return err
+	// Write reports for all formats
+	fmt.Fprintf(os.Stderr, "\nGenerating reports:\n")
+	for i, format := range formats {
+		filename := filenames[i]
+		if err := writeReport(filename, format, analysisReport); err != nil {
+			return fmt.Errorf("failed to write %s report: %w", format, err)
+		}
+		fmt.Fprintf(os.Stderr, "  ✓ %s: %s\n", strings.ToUpper(format), filename)
 	}
-
-	fmt.Fprintf(os.Stderr, "Report written to: %s\n", outputFilename)
 
 	// Export to Bitrise deploy directory if in Bitrise environment
 	if bitrise.IsBitriseEnvironment() {

@@ -61,6 +61,27 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)
 
+	// Extract app icon
+	iconData, err := util.ExtractIconFromZip(path, "apk")
+	if err != nil {
+		// Non-fatal, continue without icon
+		iconData = ""
+	}
+
+	// Extract app metadata from manifest
+	appName := ""
+	packageName := ""
+	version := ""
+	if name, ok := manifest["app_name"].(string); ok {
+		appName = name
+	}
+	if pkg, ok := manifest["package"].(string); ok {
+		packageName = pkg
+	}
+	if ver, ok := manifest["version"].(string); ok {
+		version = ver
+	}
+
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
 			Path:             path,
@@ -68,6 +89,10 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			Size:             info.Size(),
 			UncompressedSize: uncompressedSize,
 			AnalyzedAt:       time.Now(),
+			IconData:         iconData,
+			AppName:          appName,
+			BundleID:         packageName,
+			Version:          version,
 		},
 		SizeBreakdown: sizeBreakdown,
 		FileTree:      fileTree,
