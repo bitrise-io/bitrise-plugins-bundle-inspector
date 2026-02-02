@@ -726,7 +726,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     height: '100%%',
                     roam: true,
                     nodeClick: 'zoomToNode',
-                    leafDepth: 4,
+                    leafDepth: 5,
                     zoomToNodeRatio: 0.32 * 0.32,
                     scaleLimit: {
                         min: 0.5,
@@ -870,7 +870,7 @@ const htmlTemplate = `<!DOCTYPE html>
                             }
                         },
                         {
-                            // Level 4+
+                            // Level 4
                             itemStyle: {
                                 gapWidth: 1,
                                 borderWidth: 1
@@ -887,6 +887,29 @@ const htmlTemplate = `<!DOCTYPE html>
                                         color: '#fff',
                                         fontSize: 10,
                                         padding: [2, 4],
+                                        borderRadius: 2
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            // Level 5+
+                            itemStyle: {
+                                gapWidth: 1,
+                                borderWidth: 1
+                            },
+                            upperLabel: {
+                                show: true,
+                                height: 18,
+                                formatter: function(params) {
+                                    return '{bg|' + params.name + '}';
+                                },
+                                rich: {
+                                    bg: {
+                                        backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.4)',
+                                        color: '#fff',
+                                        fontSize: 9,
+                                        padding: [1, 3],
                                         borderRadius: 2
                                     }
                                 }
