@@ -45,6 +45,13 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 	defer zipReader.Close()
 
+	// Parse manifest for metadata
+	manifest, err := parseAABManifest(path)
+	if err != nil {
+		// Non-fatal, continue without manifest data
+		manifest = make(map[string]interface{})
+	}
+
 	// Build file tree and calculate sizes
 	fileTree, uncompressedSize := util.BuildZipFileTree(&zipReader.Reader)
 
@@ -57,8 +64,34 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)
 
+	// Extract app icon
+	iconData, err := util.ExtractIconFromZip(path, "aab")
+	if err != nil {
+		// Non-fatal, continue without icon
+		iconData = ""
+	}
+
+	// Extract app metadata from manifest
+	appName := ""
+	packageName := ""
+	version := ""
+	if name, ok := manifest["app_name"].(string); ok {
+		appName = name
+	}
+	if pkg, ok := manifest["package"].(string); ok {
+		packageName = pkg
+	}
+	if ver, ok := manifest["version"].(string); ok {
+		version = ver
+	}
+
+	// Include modules in metadata
 	metadata := map[string]interface{}{
 		"modules": modules,
+	}
+	// Merge manifest data into metadata
+	for k, v := range manifest {
+		metadata[k] = v
 	}
 
 	report := &types.Report{
@@ -68,6 +101,10 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			Size:             info.Size(),
 			UncompressedSize: uncompressedSize,
 			AnalyzedAt:       time.Now(),
+			IconData:         iconData,
+			AppName:          appName,
+			BundleID:         packageName,
+			Version:          version,
 		},
 		SizeBreakdown: sizeBreakdown,
 		FileTree:      fileTree,
@@ -76,6 +113,38 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 
 	return report, nil
+}
+
+// parseAABManifest extracts basic information from AndroidManifest.xml in AAB
+func parseAABManifest(aabPath string) (map[string]interface{}, error) {
+	manifest := make(map[string]interface{})
+
+	// Open AAB file
+	zipFile, err := zip.OpenReader(aabPath)
+	if err != nil {
+		return manifest, fmt.Errorf("failed to open AAB file: %w", err)
+	}
+	defer zipFile.Close()
+
+	// Find AndroidManifest.xml (typically in base/manifest/ or other modules)
+	for _, f := range zipFile.File {
+		// AAB structure: base/manifest/AndroidManifest.xml or {module}/manifest/AndroidManifest.xml
+		if strings.HasSuffix(f.Name, "manifest/AndroidManifest.xml") {
+			manifest["has_manifest"] = true
+			// Extract module name from path (e.g., "base" from "base/manifest/AndroidManifest.xml")
+			parts := strings.Split(f.Name, "/")
+			if len(parts) > 0 {
+				manifest["base_module"] = parts[0]
+			}
+			break
+		}
+	}
+
+	// Note: Full manifest parsing requires binary XML decoding
+	// For MVP, we just detect its presence and module structure
+	// Full parsing can be added in future phases
+
+	return manifest, nil
 }
 
 // detectModules identifies modules in the AAB

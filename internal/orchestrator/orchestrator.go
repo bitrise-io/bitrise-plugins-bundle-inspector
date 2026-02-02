@@ -205,10 +205,14 @@ func (o *Orchestrator) enrichWithCIMetadata(report *types.Report) {
 		report.Metadata["git_branch"] = branch
 	}
 
-	if commit := os.Getenv("BITRISE_GIT_COMMIT"); commit != "" {
-		report.Metadata["git_commit"] = commit
+	// Use commit_hash key to match markdown formatter expectations
+	// Try Bitrise environment variable first (GIT_CLONE_COMMIT_HASH)
+	if commit := os.Getenv("GIT_CLONE_COMMIT_HASH"); commit != "" {
+		report.Metadata["commit_hash"] = commit
+	} else if commit := os.Getenv("BITRISE_GIT_COMMIT"); commit != "" {
+		report.Metadata["commit_hash"] = commit
 	} else if commit := os.Getenv("GIT_COMMIT"); commit != "" {
-		report.Metadata["git_commit"] = commit
+		report.Metadata["commit_hash"] = commit
 	}
 }
 
