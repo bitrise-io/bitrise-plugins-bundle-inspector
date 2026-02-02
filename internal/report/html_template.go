@@ -253,6 +253,26 @@ const htmlTemplate = `<!DOCTYPE html>
             z-index: 1;
         }
 
+        /* Tooltip variant - bottom positioning */
+        .tooltip-bottom .tooltip-content {
+            bottom: auto;
+            top: calc(100% + 8px);
+        }
+
+        .tooltip-bottom .tooltip-content::after {
+            top: auto;
+            bottom: 100%;
+            border-top-color: transparent;
+            border-bottom-color: hsl(var(--border));
+        }
+
+        .tooltip-bottom .tooltip-content::before {
+            top: auto;
+            bottom: 100%;
+            border-top-color: transparent;
+            border-bottom-color: hsl(var(--popover));
+        }
+
         /* Legend item styles */
         .legend-item {
             display: flex;
@@ -293,7 +313,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
                 <!-- Dark Mode Toggle with Keyboard Shortcut -->
                 <button data-action="toggle-theme"
-                        class="tooltip-trigger inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9 relative group"
+                        class="tooltip-trigger tooltip-bottom inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9 relative group"
                         aria-label="Toggle Mode (D)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4.5 w-4.5 transition-transform group-hover:scale-110">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
