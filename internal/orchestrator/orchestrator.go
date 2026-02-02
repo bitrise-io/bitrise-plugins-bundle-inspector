@@ -54,6 +54,9 @@ func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*t
 	report.Optimizations = o.generateOptimizations(report)
 	report.TotalSavings = calculateTotalSavings(report)
 
+	// Add Git/CI metadata if available
+	o.enrichWithCIMetadata(report)
+
 	return report, nil
 }
 
@@ -175,6 +178,26 @@ func calculateTotalSavings(report *types.Report) int64 {
 		total += opt.Impact
 	}
 	return total
+}
+
+// enrichWithCIMetadata adds Git/CI metadata from environment variables
+func (o *Orchestrator) enrichWithCIMetadata(report *types.Report) {
+	if report.Metadata == nil {
+		report.Metadata = make(map[string]interface{})
+	}
+
+	// Try Bitrise environment variables first
+	if branch := os.Getenv("BITRISE_GIT_BRANCH"); branch != "" {
+		report.Metadata["git_branch"] = branch
+	} else if branch := os.Getenv("GIT_BRANCH"); branch != "" {
+		report.Metadata["git_branch"] = branch
+	}
+
+	if commit := os.Getenv("BITRISE_GIT_COMMIT"); commit != "" {
+		report.Metadata["git_commit"] = commit
+	} else if commit := os.Getenv("GIT_COMMIT"); commit != "" {
+		report.Metadata["git_commit"] = commit
+	}
 }
 
 // detectAssetDuplicates extracts asset catalogs from report metadata and detects duplicates.

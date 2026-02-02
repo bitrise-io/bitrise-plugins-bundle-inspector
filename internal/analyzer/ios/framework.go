@@ -132,6 +132,59 @@ func GetFrameworkVersion(infoPlistPath string) (string, error) {
 	return "", fmt.Errorf("no version found in Info.plist")
 }
 
+// AppMetadata contains key metadata extracted from Info.plist
+type AppMetadata struct {
+	AppName      string
+	BundleID     string
+	Version      string
+	BuildVersion string
+	MinOSVersion string
+}
+
+// ParseAppInfoPlist extracts app metadata from the main app's Info.plist
+func ParseAppInfoPlist(infoPlistPath string) (*AppMetadata, error) {
+	data, err := os.ReadFile(infoPlistPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Info.plist: %w", err)
+	}
+
+	var plistData map[string]interface{}
+	if _, err := plist.Unmarshal(data, &plistData); err != nil {
+		return nil, fmt.Errorf("failed to parse Info.plist: %w", err)
+	}
+
+	metadata := &AppMetadata{}
+
+	// Extract app name (try multiple keys)
+	if name, ok := plistData["CFBundleDisplayName"].(string); ok && name != "" {
+		metadata.AppName = name
+	} else if name, ok := plistData["CFBundleName"].(string); ok && name != "" {
+		metadata.AppName = name
+	}
+
+	// Extract bundle identifier
+	if bundleID, ok := plistData["CFBundleIdentifier"].(string); ok {
+		metadata.BundleID = bundleID
+	}
+
+	// Extract version
+	if version, ok := plistData["CFBundleShortVersionString"].(string); ok {
+		metadata.Version = version
+	}
+
+	// Extract build version
+	if buildVersion, ok := plistData["CFBundleVersion"].(string); ok {
+		metadata.BuildVersion = buildVersion
+	}
+
+	// Extract minimum OS version
+	if minOS, ok := plistData["MinimumOSVersion"].(string); ok {
+		metadata.MinOSVersion = minOS
+	}
+
+	return metadata, nil
+}
+
 // getDirectorySize calculates the total size of a directory.
 func getDirectorySize(path string) (int64, error) {
 	var size int64

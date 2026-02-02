@@ -81,14 +81,24 @@ const htmlTemplate = `<!DOCTYPE html>
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
-            margin-top: 15px;
+            margin-top: 10px;
             color: var(--text-secondary);
+            font-size: 14px;
         }
 
         .artifact-info span {
             display: flex;
             align-items: center;
             gap: 5px;
+        }
+
+        .artifact-info code {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
         }
 
         .theme-toggle {
@@ -113,39 +123,6 @@ const htmlTemplate = `<!DOCTYPE html>
 
         .theme-icon {
             font-size: 18px;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .metric-card {
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px var(--shadow);
-            transition: background-color 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .metric-label {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
-
-        .metric-value {
-            font-size: 28px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .metric-secondary {
-            font-size: 14px;
-            color: var(--text-tertiary);
-            margin-top: 4px;
         }
 
         .main-content {
@@ -523,10 +500,20 @@ const htmlTemplate = `<!DOCTYPE html>
     <div class="container">
         <header>
             <div class="header-content">
-                <h1>{{.Title}}</h1>
+                <h1>{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
                 <div class="artifact-info">
-                    <span><strong>Artifact:</strong> {{.ArtifactName}}</span>
-                    <span><strong>Type:</strong> {{.ArtifactType}}</span>
+                    {{if .BundleID}}<span><strong>Bundle ID:</strong> {{.BundleID}}</span>{{end}}
+                    {{if .Platform}}<span><strong>Platform:</strong> {{.Platform}}</span>{{end}}
+                    {{if .Version}}<span><strong>Version:</strong> {{.Version}}</span>{{end}}
+                </div>
+                <div class="artifact-info">
+                    <span><strong>Download Size:</strong> {{.TotalSize}}</span>
+                    <span><strong>Install Size:</strong> {{.UncompressedSize}}</span>
+                    <span><strong>Potential Savings:</strong> {{.TotalSavings}}</span>
+                </div>
+                <div class="artifact-info">
+                    {{if .Branch}}<span><strong>Branch:</strong> {{.Branch}}</span>{{end}}
+                    {{if .CommitSHA}}<span><strong>Commit:</strong> <code>{{.CommitSHA}}</code></span>{{end}}
                     <span><strong>Analyzed:</strong> <time>{{.Timestamp}}</time></span>
                 </div>
             </div>
@@ -535,27 +522,6 @@ const htmlTemplate = `<!DOCTYPE html>
                 <span class="theme-text">Dark Mode</span>
             </button>
         </header>
-
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Install Size</div>
-                <div class="metric-value">{{.UncompressedSize}}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Download Size</div>
-                <div class="metric-value">{{.TotalSize}}</div>
-                <div class="metric-secondary">Compression: {{.CompressionRatio}}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Potential Savings</div>
-                <div class="metric-value">{{.TotalSavings}}</div>
-                <div class="metric-secondary">{{.SavingsPercentage}} of total</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Total Files</div>
-                <div class="metric-value">{{.NodeCount}}</div>
-            </div>
-        </div>
 
         <div class="main-content">
             <div class="treemap-container">

@@ -67,6 +67,13 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Parse asset catalogs
 	assetCatalogs := parseAssetCatalogs(fileTree, path, a.Logger)
 
+	// Parse app metadata from Info.plist
+	var appMetadata *AppMetadata
+	infoPlistPath := filepath.Join(path, "Info.plist")
+	if parsedMetadata, err := ParseAppInfoPlist(infoPlistPath); err == nil {
+		appMetadata = parsedMetadata
+	}
+
 	// Expand Mach-O binary segments as virtual children
 	expandMachOSegments(fileTree, path, a.Logger)
 
@@ -91,6 +98,36 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	typedFrameworks := ConvertFrameworksToTypes(frameworks)
 	typedAssetCatalogs := ConvertAssetCatalogsToTypes(assetCatalogs)
 
+	// Build metadata map
+	metadata := map[string]interface{}{
+		"app_bundle":       filepath.Base(path),
+		"is_directory":     true,
+		"binaries":         binaries,
+		"frameworks":       typedFrameworks,
+		"dependency_graph": depGraph,
+		"asset_catalogs":   typedAssetCatalogs,
+		"platform":         "iOS",
+	}
+
+	// Add app metadata if available
+	if appMetadata != nil {
+		if appMetadata.AppName != "" {
+			metadata["app_name"] = appMetadata.AppName
+		}
+		if appMetadata.BundleID != "" {
+			metadata["bundle_id"] = appMetadata.BundleID
+		}
+		if appMetadata.Version != "" {
+			metadata["version"] = appMetadata.Version
+		}
+		if appMetadata.BuildVersion != "" {
+			metadata["build_version"] = appMetadata.BuildVersion
+		}
+		if appMetadata.MinOSVersion != "" {
+			metadata["min_os_version"] = appMetadata.MinOSVersion
+		}
+	}
+
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
 			Path:             path,
@@ -99,18 +136,11 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			UncompressedSize: totalSize,
 			AnalyzedAt:       time.Now(),
 		},
-		SizeBreakdown:  sizeBreakdown,
-		FileTree:       fileTree,
-		LargestFiles:   largestFiles,
-		Optimizations:  optimizations,
-		Metadata: map[string]interface{}{
-			"app_bundle":       filepath.Base(path),
-			"is_directory":     true,
-			"binaries":         binaries,
-			"frameworks":       typedFrameworks,
-			"dependency_graph": depGraph,
-			"asset_catalogs":   typedAssetCatalogs,
-		},
+		SizeBreakdown: sizeBreakdown,
+		FileTree:      fileTree,
+		LargestFiles:  largestFiles,
+		Optimizations: optimizations,
+		Metadata:      metadata,
 	}
 
 	return report, nil

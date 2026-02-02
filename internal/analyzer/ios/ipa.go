@@ -44,6 +44,7 @@ type appBundleAnalysis struct {
 	frameworks       []*FrameworkInfo
 	unusedFrameworks []string
 	assetCatalogs    []*assets.AssetCatalogInfo
+	appMetadata      *AppMetadata
 	sizeBreakdown    types.SizeBreakdown
 	largestFiles     []types.FileNode
 }
@@ -91,6 +92,13 @@ func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundle
 	// Analyze assets
 	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath, a.Logger)
 
+	// Parse app metadata from Info.plist
+	var appMetadata *AppMetadata
+	infoPlistPath := filepath.Join(appBundlePath, "Info.plist")
+	if parsedMetadata, err := ParseAppInfoPlist(infoPlistPath); err == nil {
+		appMetadata = parsedMetadata
+	}
+
 	// Expand Mach-O binary segments as virtual children
 	expandMachOSegments(fileTree, appBundlePath, a.Logger)
 
@@ -102,6 +110,7 @@ func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundle
 		frameworks:       frameworks,
 		unusedFrameworks: unusedFrameworks,
 		assetCatalogs:    assetCatalogs,
+		appMetadata:      appMetadata,
 		sizeBreakdown:    categorizeSizes(fileTree),
 		largestFiles:     util.FindLargestFiles(fileTree, 10),
 	}, nil
@@ -159,6 +168,35 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Generate optimizations
 	optimizations := a.generateAllOptimizations(analysis)
 
+	// Build metadata map
+	metadata := map[string]interface{}{
+		"app_bundle":       filepath.Base(analysis.appBundlePath),
+		"binaries":         analysis.binaries,
+		"frameworks":       ConvertFrameworksToTypes(analysis.frameworks),
+		"dependency_graph": macho.BuildDependencyGraph(analysis.binaries),
+		"asset_catalogs":   ConvertAssetCatalogsToTypes(analysis.assetCatalogs),
+		"platform":         "iOS",
+	}
+
+	// Add app metadata if available
+	if analysis.appMetadata != nil {
+		if analysis.appMetadata.AppName != "" {
+			metadata["app_name"] = analysis.appMetadata.AppName
+		}
+		if analysis.appMetadata.BundleID != "" {
+			metadata["bundle_id"] = analysis.appMetadata.BundleID
+		}
+		if analysis.appMetadata.Version != "" {
+			metadata["version"] = analysis.appMetadata.Version
+		}
+		if analysis.appMetadata.BuildVersion != "" {
+			metadata["build_version"] = analysis.appMetadata.BuildVersion
+		}
+		if analysis.appMetadata.MinOSVersion != "" {
+			metadata["min_os_version"] = analysis.appMetadata.MinOSVersion
+		}
+	}
+
 	// Build final report
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
@@ -172,13 +210,7 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		FileTree:      analysis.fileTree,
 		LargestFiles:  analysis.largestFiles,
 		Optimizations: optimizations,
-		Metadata: map[string]interface{}{
-			"app_bundle":       filepath.Base(analysis.appBundlePath),
-			"binaries":         analysis.binaries,
-			"frameworks":       ConvertFrameworksToTypes(analysis.frameworks),
-			"dependency_graph": macho.BuildDependencyGraph(analysis.binaries),
-			"asset_catalogs":   ConvertAssetCatalogsToTypes(analysis.assetCatalogs),
-		},
+		Metadata:      metadata,
 	}
 
 	return report, nil

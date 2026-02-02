@@ -44,6 +44,12 @@ func (f *HTMLFormatter) Format(w io.Writer, report *types.Report) error {
 // templateData holds all data needed for the HTML template
 type templateData struct {
 	Title              string
+	AppName            string
+	BundleID           string
+	Platform           string
+	Version            string
+	Branch             string
+	CommitSHA          string
 	ArtifactName       string
 	ArtifactType       string
 	TotalSize          string
@@ -93,8 +99,53 @@ func (f *HTMLFormatter) prepareTemplateData(report *types.Report) templateData {
 		dataJSON = []byte("{}")
 	}
 
+	// Extract metadata fields with safe type assertions
+	appName := ""
+	bundleID := ""
+	platform := ""
+	version := ""
+	branch := ""
+	commitSHA := ""
+
+	if report.Metadata != nil {
+		if v, ok := report.Metadata["app_name"].(string); ok {
+			appName = v
+		}
+		if v, ok := report.Metadata["bundle_id"].(string); ok {
+			bundleID = v
+		}
+		if v, ok := report.Metadata["platform"].(string); ok {
+			platform = v
+		}
+		if v, ok := report.Metadata["version"].(string); ok {
+			version = v
+		}
+		if v, ok := report.Metadata["git_branch"].(string); ok {
+			branch = v
+		}
+		if v, ok := report.Metadata["git_commit"].(string); ok {
+			commitSHA = v
+		}
+	}
+
+	// Determine platform from artifact type if not set
+	if platform == "" {
+		switch report.ArtifactInfo.Type {
+		case types.ArtifactTypeIPA, types.ArtifactTypeApp, types.ArtifactTypeXCArchive:
+			platform = "iOS"
+		case types.ArtifactTypeAPK, types.ArtifactTypeAAB:
+			platform = "Android"
+		}
+	}
+
 	return templateData{
 		Title:              f.Title,
+		AppName:            appName,
+		BundleID:           bundleID,
+		Platform:           platform,
+		Version:            version,
+		Branch:             branch,
+		CommitSHA:          commitSHA,
 		ArtifactName:       artifactName,
 		ArtifactType:       string(report.ArtifactInfo.Type),
 		TotalSize:          util.FormatBytes(downloadSize),
