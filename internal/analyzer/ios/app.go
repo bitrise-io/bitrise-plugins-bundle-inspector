@@ -67,6 +67,9 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Parse asset catalogs
 	assetCatalogs := parseAssetCatalogs(fileTree, path, a.Logger)
 
+	// Expand Mach-O binary segments as virtual children
+	expandMachOSegments(fileTree, path, a.Logger)
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 

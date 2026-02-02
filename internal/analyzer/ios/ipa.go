@@ -91,6 +91,9 @@ func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundle
 	// Analyze assets
 	assetCatalogs := parseAssetCatalogs(fileTree, appBundlePath, a.Logger)
 
+	// Expand Mach-O binary segments as virtual children
+	expandMachOSegments(fileTree, appBundlePath, a.Logger)
+
 	return &appBundleAnalysis{
 		appBundlePath:    appBundlePath,
 		fileTree:         fileTree,
@@ -524,6 +527,49 @@ func parseAssetCatalogs(nodes []*types.FileNode, rootPath string, log logger.Log
 	}
 
 	return catalogs
+}
+
+// expandMachOSegments walks the file tree and expands Mach-O binaries
+// to show their segments and sections as virtual children.
+func expandMachOSegments(nodes []*types.FileNode, rootPath string, log logger.Logger) {
+	var walkNodes func(node *types.FileNode)
+	walkNodes = func(node *types.FileNode) {
+		if node.IsDir {
+			for _, child := range node.Children {
+				walkNodes(child)
+			}
+			return
+		}
+
+		// Skip already virtual nodes (e.g., assets from .car files)
+		if node.IsVirtual {
+			return
+		}
+
+		fullPath := filepath.Join(rootPath, node.Path)
+
+		// Check if this is a Mach-O binary
+		if !macho.IsMachO(fullPath) {
+			return
+		}
+
+		// Parse segments from the binary
+		segments, err := macho.ParseSegments(fullPath)
+		if err != nil {
+			log.Warn("Failed to parse Mach-O segments for %s: %v", node.Path, err)
+			return
+		}
+
+		// Expand segments as virtual children
+		virtualChildren := macho.ExpandSegmentsAsChildren(segments, node.Path)
+		if len(virtualChildren) > 0 {
+			node.Children = virtualChildren
+		}
+	}
+
+	for _, node := range nodes {
+		walkNodes(node)
+	}
 }
 
 // generateStripSymbolsOptimizations creates optimization recommendations for binaries with debug symbols.
