@@ -2127,12 +2127,22 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         // Extract all files from tree into flat list
-        function extractAllFiles(node, parentPath = '') {
+        function extractAllFiles(node, parentPath = '', isRoot = false) {
             const files = [];
 
             if (!node) return files;
 
-            const currentPath = parentPath ? parentPath + '/' + node.name : node.name;
+            // Handle root node specially - use "./" instead of "root/"
+            let currentPath;
+            if (isRoot || (parentPath === '' && node.name === 'root')) {
+                currentPath = './';
+            } else if (parentPath === './') {
+                currentPath = './' + node.name;
+            } else if (parentPath) {
+                currentPath = parentPath + '/' + node.name;
+            } else {
+                currentPath = node.name;
+            }
 
             // If it's a file (not a directory), add it
             if (!node.children || node.children.length === 0) {
@@ -2147,7 +2157,7 @@ const htmlTemplate = `<!DOCTYPE html>
             // Recursively process children
             if (node.children) {
                 node.children.forEach(child => {
-                    const childFiles = extractAllFiles(child, currentPath);
+                    const childFiles = extractAllFiles(child, currentPath, false);
                     files.push(...childFiles);
                 });
             }
@@ -2164,10 +2174,10 @@ const htmlTemplate = `<!DOCTYPE html>
             // Handle both single node and array of nodes
             if (Array.isArray(reportData.fileTree)) {
                 reportData.fileTree.forEach(rootNode => {
-                    allFiles.push(...extractAllFiles(rootNode, ''));
+                    allFiles.push(...extractAllFiles(rootNode, '', true));
                 });
             } else {
-                allFiles = extractAllFiles(reportData.fileTree, '');
+                allFiles = extractAllFiles(reportData.fileTree, '', true);
             }
 
             // Sort by size descending (largest first)
