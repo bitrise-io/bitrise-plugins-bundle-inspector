@@ -1195,10 +1195,11 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '    <div class="insight-files-content p-4 bg-muted/30">';
 
                 // For duplicates, group files by duplicate set
+                const tableId = 'table-' + category + '-' + index;
                 if (category === 'duplicates') {
-                    html += renderDuplicateGroups(group.items);
+                    html += renderDuplicateGroups(group.items, tableId);
                 } else {
-                    html += renderFilesTable(group.items);
+                    html += renderFilesTable(group.items, tableId);
                 }
 
                 html += '    </div>';
@@ -1227,10 +1228,195 @@ const htmlTemplate = `<!DOCTYPE html>
             }
         }
 
-        // Render files as a shadcn/ui styled table
-        function renderFilesTable(items) {
-            let html = '';
+        // Data table state storage
+        const dataTableStates = {};
 
+        // Create a data table with sorting and pagination
+        function createDataTable(tableId, data, columns, options = {}) {
+            const pageSize = options.pageSize || 10;
+            const state = {
+                data: data,
+                columns: columns,
+                sortColumn: options.defaultSort || null,
+                sortDirection: options.defaultSortDir || 'desc',
+                currentPage: 0,
+                pageSize: pageSize
+            };
+            dataTableStates[tableId] = state;
+
+            // Sort data initially
+            if (state.sortColumn) {
+                sortDataTable(tableId, state.sortColumn, false);
+            }
+
+            return renderDataTable(tableId);
+        }
+
+        // Sort data table by column
+        function sortDataTable(tableId, column, toggle = true) {
+            const state = dataTableStates[tableId];
+            if (!state) return;
+
+            if (toggle && state.sortColumn === column) {
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else if (toggle) {
+                state.sortColumn = column;
+                state.sortDirection = 'desc';
+            }
+
+            state.data.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+
+                // Handle string comparison
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+
+                if (aVal < bVal) return state.sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return state.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            state.currentPage = 0;
+        }
+
+        // Change page
+        function changeDataTablePage(tableId, page) {
+            const state = dataTableStates[tableId];
+            if (!state) return;
+
+            const maxPage = Math.ceil(state.data.length / state.pageSize) - 1;
+            state.currentPage = Math.max(0, Math.min(page, maxPage));
+
+            // Re-render the table
+            const container = document.getElementById(tableId);
+            if (container) {
+                container.outerHTML = renderDataTable(tableId);
+            }
+        }
+
+        // Handle sort click
+        function handleDataTableSort(tableId, column) {
+            sortDataTable(tableId, column, true);
+            const container = document.getElementById(tableId);
+            if (container) {
+                container.outerHTML = renderDataTable(tableId);
+            }
+        }
+
+        // Render data table HTML
+        function renderDataTable(tableId) {
+            const state = dataTableStates[tableId];
+            if (!state) return '';
+
+            const { data, columns, sortColumn, sortDirection, currentPage, pageSize } = state;
+            const totalPages = Math.ceil(data.length / pageSize);
+            const startIdx = currentPage * pageSize;
+            const endIdx = Math.min(startIdx + pageSize, data.length);
+            const pageData = data.slice(startIdx, endIdx);
+
+            let html = '<div id="' + tableId + '" class="space-y-3">';
+
+            // Table
+            html += '<div class="rounded-md border overflow-hidden">';
+            html += '<table class="w-full text-sm">';
+
+            // Header
+            html += '<thead class="bg-muted/50">';
+            html += '<tr class="border-b border-border">';
+            columns.forEach(col => {
+                const isSorted = sortColumn === col.key;
+                const sortIcon = isSorted
+                    ? (sortDirection === 'asc'
+                        ? '<svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>'
+                        : '<svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>')
+                    : '<svg class="w-4 h-4 ml-1 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>';
+
+                const alignClass = col.align === 'right' ? 'text-right justify-end' : 'text-left';
+                const widthClass = col.width ? ' ' + col.width : '';
+
+                if (col.sortable !== false) {
+                    html += '<th class="font-medium text-muted-foreground px-4 py-3' + widthClass + '">';
+                    html += '<button onclick="handleDataTableSort(\'' + tableId + '\', \'' + col.key + '\')" class="group inline-flex items-center gap-1 hover:text-foreground transition-colors ' + alignClass + ' w-full">';
+                    html += col.label + sortIcon;
+                    html += '</button>';
+                    html += '</th>';
+                } else {
+                    html += '<th class="font-medium text-muted-foreground px-4 py-3 ' + alignClass + widthClass + '">' + col.label + '</th>';
+                }
+            });
+            html += '</tr>';
+            html += '</thead>';
+
+            // Body
+            html += '<tbody class="divide-y divide-border">';
+            pageData.forEach((row, idx) => {
+                const rowClass = idx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
+                html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
+                columns.forEach(col => {
+                    const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
+                    html += '<td class="px-4 py-3 ' + alignClass + '">';
+                    html += col.render ? col.render(row) : row[col.key];
+                    html += '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            html += '</table>';
+            html += '</div>';
+
+            // Pagination footer
+            html += '<div class="flex items-center justify-between px-2">';
+            html += '<div class="text-sm text-muted-foreground">';
+            html += 'Showing ' + (startIdx + 1) + '-' + endIdx + ' of ' + data.length + ' files';
+            html += '</div>';
+
+            if (totalPages > 1) {
+                html += '<div class="flex items-center gap-1">';
+
+                // Previous button
+                const prevDisabled = currentPage === 0;
+                html += '<button onclick="changeDataTablePage(\'' + tableId + '\', ' + (currentPage - 1) + ')" ' + (prevDisabled ? 'disabled' : '') + ' class="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 w-8 border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50">';
+                html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>';
+                html += '</button>';
+
+                // Page numbers
+                const maxVisiblePages = 5;
+                let startPage = Math.max(0, currentPage - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisiblePages);
+                if (endPage - startPage < maxVisiblePages) {
+                    startPage = Math.max(0, endPage - maxVisiblePages);
+                }
+
+                for (let i = startPage; i < endPage; i++) {
+                    const isCurrentPage = i === currentPage;
+                    const pageClass = isCurrentPage
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground';
+                    html += '<button onclick="changeDataTablePage(\'' + tableId + '\', ' + i + ')" class="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 w-8 ' + pageClass + '">';
+                    html += (i + 1);
+                    html += '</button>';
+                }
+
+                // Next button
+                const nextDisabled = currentPage >= totalPages - 1;
+                html += '<button onclick="changeDataTablePage(\'' + tableId + '\', ' + (currentPage + 1) + ')" ' + (nextDisabled ? 'disabled' : '') + ' class="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 w-8 border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50">';
+                html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
+                html += '</button>';
+
+                html += '</div>';
+            }
+
+            html += '</div>';
+            html += '</div>';
+
+            return html;
+        }
+
+        // Render files as a data table
+        function renderFilesTable(items, tableId) {
             // Collect all files with their estimated savings
             const fileMap = new Map();
             items.forEach(item => {
@@ -1243,55 +1429,51 @@ const htmlTemplate = `<!DOCTYPE html>
                 }
             });
 
-            // Convert to array and sort by savings descending
+            // Convert to array
             const files = Array.from(fileMap.entries())
-                .map(([path, savings]) => ({ path, savings, filename: path.split('/').pop() }))
-                .sort((a, b) => b.savings - a.savings);
+                .map(([path, savings]) => ({
+                    path,
+                    savings,
+                    filename: path.split('/').pop()
+                }));
 
             if (files.length === 0) {
-                html += '<p class="text-sm text-muted-foreground">No files to display.</p>';
-                return html;
+                return '<p class="text-sm text-muted-foreground">No files to display.</p>';
             }
 
-            // Table container with horizontal scroll for mobile
-            html += '<div class="rounded-md border overflow-hidden">';
-            html += '<table class="w-full text-sm">';
+            const columns = [
+                {
+                    key: 'filename',
+                    label: 'File',
+                    render: (row) => {
+                        return '<div class="flex flex-col gap-0.5">' +
+                            '<span class="font-medium text-foreground truncate max-w-md" title="' + row.path + '">' + row.filename + '</span>' +
+                            '<span class="text-xs text-muted-foreground font-mono truncate max-w-md">' + truncatePath(row.path, 60) + '</span>' +
+                            '</div>';
+                    }
+                },
+                {
+                    key: 'savings',
+                    label: 'Savings',
+                    align: 'right',
+                    width: 'w-32',
+                    render: (row) => {
+                        return '<span class="inline-flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded">' +
+                            formatBytes(row.savings) +
+                            '</span>';
+                    }
+                }
+            ];
 
-            // Table header
-            html += '<thead class="bg-muted/50">';
-            html += '<tr class="border-b border-border">';
-            html += '<th class="text-left font-medium text-muted-foreground px-4 py-3">File</th>';
-            html += '<th class="text-right font-medium text-muted-foreground px-4 py-3 w-32">Savings</th>';
-            html += '</tr>';
-            html += '</thead>';
-
-            // Table body
-            html += '<tbody class="divide-y divide-border">';
-            files.forEach((file, idx) => {
-                const rowClass = idx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
-                html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
-                html += '<td class="px-4 py-3">';
-                html += '<div class="flex flex-col gap-0.5">';
-                html += '<span class="font-medium text-foreground truncate max-w-md" title="' + file.path + '">' + file.filename + '</span>';
-                html += '<span class="text-xs text-muted-foreground font-mono truncate max-w-md">' + truncatePath(file.path, 60) + '</span>';
-                html += '</div>';
-                html += '</td>';
-                html += '<td class="px-4 py-3 text-right">';
-                html += '<span class="inline-flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded">';
-                html += formatBytes(file.savings);
-                html += '</span>';
-                html += '</td>';
-                html += '</tr>';
+            return createDataTable(tableId, files, columns, {
+                defaultSort: 'savings',
+                defaultSortDir: 'desc',
+                pageSize: 10
             });
-            html += '</tbody>';
-            html += '</table>';
-            html += '</div>';
-
-            return html;
         }
 
-        // Render duplicate files grouped by duplicate set as tables
-        function renderDuplicateGroups(items) {
+        // Render duplicate files grouped by duplicate set
+        function renderDuplicateGroups(items, baseTableId) {
             let html = '';
 
             // Sort items by impact (wasted size) descending
@@ -1300,12 +1482,10 @@ const htmlTemplate = `<!DOCTYPE html>
             sortedItems.forEach((item, idx) => {
                 if (!item.files || item.files.length === 0) return;
 
-                // Extract filename from first file path for the group header
                 const firstFile = item.files[0];
                 const filename = firstFile.split('/').pop();
                 const copyCount = item.files.length;
                 const wastedSize = formatBytes(item.impact);
-                const perCopySavings = Math.floor(item.impact / (copyCount - 1));
 
                 html += '<div class="mb-6 last:mb-0">';
 
@@ -1321,38 +1501,39 @@ const htmlTemplate = `<!DOCTYPE html>
                 html += '</div>';
                 html += '</div>';
 
-                // Table for duplicate locations
-                html += '<div class="rounded-md border overflow-hidden">';
-                html += '<table class="w-full text-sm">';
-                html += '<thead class="bg-muted/50">';
-                html += '<tr class="border-b border-border">';
-                html += '<th class="text-left font-medium text-muted-foreground px-4 py-2 text-xs">Location</th>';
-                html += '<th class="text-right font-medium text-muted-foreground px-4 py-2 text-xs w-32">Status</th>';
-                html += '</tr>';
-                html += '</thead>';
-                html += '<tbody class="divide-y divide-border">';
+                // Prepare data for this duplicate set
+                const tableId = baseTableId + '-dup-' + idx;
+                const dupeData = item.files.map((file, fileIdx) => ({
+                    path: file,
+                    isOriginal: fileIdx === 0
+                }));
 
-                item.files.forEach((file, fileIdx) => {
-                    const rowClass = fileIdx % 2 === 0 ? 'bg-background' : 'bg-muted/20';
-                    const isOriginal = fileIdx === 0;
-
-                    html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
-                    html += '<td class="px-4 py-2">';
-                    html += '<span class="text-xs font-mono text-muted-foreground truncate block max-w-lg" title="' + file + '">' + truncatePath(file, 70) + '</span>';
-                    html += '</td>';
-                    html += '<td class="px-4 py-2 text-right">';
-                    if (isOriginal) {
-                        html += '<span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Original</span>';
-                    } else {
-                        html += '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Duplicate</span>';
+                const columns = [
+                    {
+                        key: 'path',
+                        label: 'Location',
+                        sortable: false,
+                        render: (row) => {
+                            return '<span class="text-xs font-mono text-muted-foreground truncate block max-w-lg" title="' + row.path + '">' + truncatePath(row.path, 70) + '</span>';
+                        }
+                    },
+                    {
+                        key: 'isOriginal',
+                        label: 'Status',
+                        align: 'right',
+                        width: 'w-32',
+                        sortable: false,
+                        render: (row) => {
+                            if (row.isOriginal) {
+                                return '<span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Original</span>';
+                            } else {
+                                return '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Duplicate</span>';
+                            }
+                        }
                     }
-                    html += '</td>';
-                    html += '</tr>';
-                });
+                ];
 
-                html += '</tbody>';
-                html += '</table>';
-                html += '</div>';
+                html += createDataTable(tableId, dupeData, columns, { pageSize: 5 });
                 html += '</div>';
             });
 
