@@ -2483,6 +2483,12 @@ const htmlTemplate = `<!DOCTYPE html>
                 return;
             }
 
+            // Ignore if any modifier keys are pressed (Cmd/Ctrl/Alt/Shift)
+            // This prevents overriding system shortcuts like Cmd+C (copy), Cmd+A (select all), etc.
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+                return;
+            }
+
             const key = event.key.toLowerCase();
 
             switch (key) {
