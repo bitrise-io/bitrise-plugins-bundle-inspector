@@ -76,18 +76,32 @@ const htmlTemplate = `<!DOCTYPE html>
             --input: 214.3 31.8% 91.4%;
             --ring: 274 58% 52%;
             --radius: 0.75rem;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
 
-            /* File Type Colors */
-            --color-framework: #9247C2;
-            --color-library: #0dd3c5;
-            --color-native: #ff9500;
-            --color-image: #ffd60a;
-            --color-asset-catalog: #30d158;
-            --color-resource: #64d2ff;
-            --color-ui: #bf5af2;
-            --color-dex: #ac8e68;
-            --color-duplicate: #ff453a;
-            --color-other: #98989d;
+            /* Bitrise Brand Colors for Category Headers */
+            --color-header-0: #DEB4FF;  /* Base lavender purple */
+            --color-header-1: #B190CC;  /* Darker 20% */
+            --color-header-2: #856C99;  /* Darker 40% */
+            --color-header-3: #584866;  /* Darker 60% */
+            --color-header-4: #2C2433;  /* Darkest 80% */
+
+            /* Content/File Type Colors - Emerge Tools Aligned */
+            --color-framework: #5B7FDB;          /* Blue (was #9247C2) */
+            --color-library: #0dd3c5;            /* Cyan (unchanged) */
+            --color-native: #ff9500;             /* Orange (unchanged) */
+            --color-image: #30d158;              /* Green (was #ffd60a yellow) */
+            --color-asset-catalog: #59886b;      /* Forest Green (was #30d158) */
+            --color-resource: #64d2ff;           /* Light Blue (unchanged) */
+            --color-ui: #bf5af2;                 /* Magenta (unchanged) */
+            --color-dex: #ac8e68;                /* Brown (unchanged) */
+            --color-font: #6a097d;               /* Purple (NEW - fixes bug) */
+            --color-video: #0e49b5;              /* Dark Blue (NEW) */
+            --color-audio: #ff6b35;              /* Coral (NEW) */
+            --color-mlmodel: #583D72;            /* Deep Purple (NEW) */
+            --color-localization: #ffa45b;       /* Light Orange (NEW) */
+            --color-duplicate: #ff453a;          /* Red (unchanged) */
+            --color-other: #98989d;              /* Gray (unchanged) */
         }
 
         .dark {
@@ -103,6 +117,8 @@ const htmlTemplate = `<!DOCTYPE html>
             --border: 217.2 32.6% 17.5%;
             --input: 217.2 32.6% 17.5%;
             --ring: 274 58% 52%;
+            --popover: 222.2 84% 4.9%;
+            --popover-foreground: 210 40% 98%;
         }
 
         @layer base {
@@ -179,6 +195,64 @@ const htmlTemplate = `<!DOCTYPE html>
             border-width: 0;
         }
 
+        /* shadcn/ui style tooltip */
+        .tooltip-trigger {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .tooltip-content {
+            position: absolute;
+            z-index: 50;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.5rem 0.75rem;
+            background: hsl(var(--popover));
+            color: hsl(var(--popover-foreground));
+            border: 1px solid hsl(var(--border));
+            border-radius: calc(var(--radius) - 2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 150ms ease-in-out;
+            text-transform: none;
+        }
+
+        .dark .tooltip-content {
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+        }
+
+        .tooltip-trigger:hover .tooltip-content,
+        .tooltip-trigger:focus .tooltip-content {
+            opacity: 1;
+        }
+
+        /* Tooltip arrow */
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: hsl(var(--border));
+        }
+
+        .tooltip-content::before {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 3px solid transparent;
+            border-top-color: hsl(var(--popover));
+            z-index: 1;
+        }
+
         /* Legend item styles */
         .legend-item {
             display: flex;
@@ -242,75 +316,105 @@ const htmlTemplate = `<!DOCTYPE html>
     <main class="w-full">
         <div class="w-full max-w-7xl mx-auto px-6 py-6 space-y-6">
         <!-- App Info Card -->
-        <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <div class="flex items-center gap-4 mb-4">
-                {{if .IconData}}
-                <div class="flex-shrink-0">
-                    <img src="{{.IconData}}" alt="App Icon" class="w-16 h-16 rounded-xl shadow-md" />
-                </div>
-                {{end}}
-                <div class="flex-grow">
-                    <h1 class="scroll-m-20 text-3xl font-semibold tracking-tight">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
-                    {{if .BundleID}}<p class="text-sm text-muted-foreground mt-1 font-mono">{{.BundleID}}</p>{{end}}
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                        <!-- App Info -->
-                        <div class="space-y-4">
-                            <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">App Info</h3>
-                            <div class="space-y-3">
-                                {{if .Platform}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Platform</span>
-                                    <span class="text-sm font-semibold text-right">{{.Platform}}</span>
-                                </div>{{end}}
-                                {{if .Version}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Version</span>
-                                    <span class="text-sm font-semibold text-right">{{.Version}}</span>
-                                </div>{{end}}
-                                {{if .ArtifactType}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Type</span>
-                                    <span class="text-sm font-semibold text-right uppercase">{{.ArtifactType}}</span>
-                                </div>{{end}}
-                            </div>
-                        </div>
-                        <!-- Build Info -->
-                        <div class="space-y-4">
-                            <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Build Info</h3>
-                            <div class="space-y-3">
-                                {{if .Branch}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Branch</span>
-                                    <span class="text-sm font-semibold text-right">{{.Branch}}</span>
-                                </div>{{end}}
-                                {{if .CommitSHA}}<div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Commit</span>
-                                    <span class="text-sm font-semibold font-mono text-right bg-muted px-2 py-0.5 rounded">{{.CommitSHA}}</span>
-                                </div>{{end}}
-                                <div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Analyzed</span>
-                                    <span class="text-sm font-semibold text-right"><time>{{.Timestamp}}</time></span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Size Analysis -->
-                        <div class="space-y-4">
-                            <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size Analysis</h3>
-                            <div class="space-y-3">
-                                <div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Download Size</span>
-                                    <span class="text-sm font-semibold text-right">{{.TotalSize}}</span>
-                                </div>
-                                <div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Install Size</span>
-                                    <span class="text-sm font-semibold text-right">{{.UncompressedSize}}</span>
-                                </div>
-                                <div class="flex justify-between items-baseline gap-4">
-                                    <span class="text-sm text-muted-foreground font-medium">Potential Savings</span>
-                                    <span class="inline-flex items-center gap-1 text-sm font-semibold bg-success/10 text-success px-2.5 py-1 rounded-md">{{.TotalSavings}}</span>
-                                </div>
-                            </div>
-                        </div>
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+            <!-- Header Section -->
+            <div class="bg-gradient-to-r from-primary/5 to-primary/10 px-6 py-5 border-b rounded-t-lg">
+                <div class="flex items-center gap-4">
+                    {{if .IconData}}
+                    <div class="flex-shrink-0">
+                        <img src="{{.IconData}}" alt="App Icon" class="w-16 h-16 rounded-xl shadow-md ring-2 ring-background" />
+                    </div>
+                    {{end}}
+                    <div class="flex-grow min-w-0">
+                        <h1 class="scroll-m-20 text-3xl font-bold tracking-tight truncate">{{if .AppName}}{{.AppName}}{{else}}{{.Title}}{{end}}</h1>
+                        {{if .BundleID}}<p class="text-sm text-muted-foreground mt-1 font-mono truncate">{{.BundleID}}</p>{{end}}
                     </div>
                 </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-border">
+                <!-- Platform -->
+                {{if .Platform}}
+                <div class="bg-card px-5 py-4">
+                    <div class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                        <span>Platform</span>
+                        <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                            ?
+                            <span class="tooltip-content">The operating system platform (iOS, Android)</span>
+                        </span>
+                    </div>
+                    <div class="text-lg font-semibold">{{.Platform}}</div>
+                </div>
+                {{end}}
+
+                <!-- Version -->
+                {{if .Version}}
+                <div class="bg-card px-5 py-4">
+                    <div class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                        <span>Version</span>
+                        <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                            ?
+                            <span class="tooltip-content">The application version number</span>
+                        </span>
+                    </div>
+                    <div class="text-lg font-semibold">{{.Version}}</div>
+                </div>
+                {{end}}
+
+                <!-- Type -->
+                {{if .ArtifactType}}
+                <div class="bg-card px-5 py-4">
+                    <div class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                        <span>Type</span>
+                        <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                            ?
+                            <span class="tooltip-content">IPA (iOS App Store), APK (Android Package), or AAB (Android App Bundle)</span>
+                        </span>
+                    </div>
+                    <div class="text-lg font-semibold uppercase">{{.ArtifactType}}</div>
+                </div>
+                {{end}}
+
+                <!-- Potential Savings (Highlighted) -->
+                <div class="bg-card px-5 py-4">
+                    <div class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                        <span>Savings</span>
+                        <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                            ?
+                            <span class="tooltip-content">Potential size reduction from optimizations (duplicates, compression)</span>
+                        </span>
+                    </div>
+                    <div class="text-lg font-bold text-green-600 dark:text-green-500">{{.TotalSavings}}</div>
+                </div>
+            </div>
+
+            <!-- Size Metrics -->
+            <div class="bg-card px-6 py-4 border-t">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                            <span>Download Size</span>
+                            <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                                ?
+                                <span class="tooltip-content">Size users download from the app store (compressed)</span>
+                            </span>
+                        </span>
+                        <span class="text-xl font-semibold">{{.TotalSize}}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                            <span>Install Size</span>
+                            <span class="tooltip-trigger inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/30 text-[10px] cursor-help hover:bg-muted transition-colors">
+                                ?
+                                <span class="tooltip-content">Size on device after installation (uncompressed)</span>
+                            </span>
+                        </span>
+                        <span class="text-xl font-semibold">{{.UncompressedSize}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
             <!-- Tabs -->
             <div class="space-y-4">
@@ -937,7 +1041,11 @@ const htmlTemplate = `<!DOCTYPE html>
                 'resource': getCSSVariable('--color-resource'),
                 'ui': getCSSVariable('--color-ui'),
                 'dex': getCSSVariable('--color-dex'),
-                'font': getCSSVariable('--color-error'),
+                'font': getCSSVariable('--color-font'),
+                'video': getCSSVariable('--color-video'),
+                'audio': getCSSVariable('--color-audio'),
+                'mlmodel': getCSSVariable('--color-mlmodel'),
+                'localization': getCSSVariable('--color-localization'),
                 'other': getCSSVariable('--color-other'),
                 'duplicate': getCSSVariable('--color-duplicate')
             };
@@ -966,6 +1074,29 @@ const htmlTemplate = `<!DOCTYPE html>
 
             // Convert back to hex
             return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Calculate brightness of a hex color (0-255)
+        // Uses the perceived brightness formula
+        function getColorBrightness(hex) {
+            // Remove # if present
+            hex = hex.replace(/^#/, '');
+
+            // Parse RGB
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+
+            // Calculate perceived brightness
+            // Formula: (R * 299 + G * 587 + B * 114) / 1000
+            return (r * 299 + g * 587 + b * 114) / 1000;
+        }
+
+        // Get text color (black or white) based on background brightness
+        function getTextColorForBackground(bgColor) {
+            const brightness = getColorBrightness(bgColor);
+            // If brightness > 128, use dark text; otherwise use white text
+            return brightness > 128 ? '#000' : '#fff';
         }
 
         // Get the dominant file type from a node's descendants
@@ -1001,42 +1132,44 @@ const htmlTemplate = `<!DOCTYPE html>
             return dominantType;
         }
 
-        // Apply colors to tree nodes with depth-based darkening
+        // Apply colors to tree nodes
         function applyColorsToTree(node, depth) {
             depth = depth || 0;
             const isParent = node.children && node.children.length > 0;
 
-            // Parent nodes (folders) get darker colors for readable headers
-            // Leaf nodes get progressively lighter colors based on depth
-            let darkenFactor;
+            // Determine the color for this node
+            let nodeColor;
+
             if (isParent) {
-                // Parents are dark (0.4 base) and get slightly darker with depth
-                darkenFactor = 0.4 + Math.min(depth * 0.05, 0.15);
+                // Parent/group node - use Bitrise brand color based on depth
+                const headerLevel = Math.min(depth, 4);
+                nodeColor = getCSSVariable('--color-header-' + headerLevel);
             } else {
-                // Leaves are lighter and vary with depth
-                darkenFactor = Math.min(depth * 0.08, 0.3);
+                // Leaf node - use file type color (no depth-based darkening)
+                const colors = getFileTypeColors();
+                if (node.path && AppState.duplicatePaths.has(node.path)) {
+                    nodeColor = colors['duplicate'];
+                    node.isDuplicate = true;
+                } else {
+                    const fileType = node.fileType || getDominantFileType(node);
+                    nodeColor = getColorForFileType(fileType);
+                }
             }
 
-            // Determine the base color for this node
-            let baseColor;
-            const colors = getFileTypeColors();
-            if (node.path && AppState.duplicatePaths.has(node.path)) {
-                baseColor = colors['duplicate'];
-                node.isDuplicate = true;
-            } else {
-                const fileType = node.fileType || getDominantFileType(node);
-                baseColor = getColorForFileType(fileType);
-            }
-
-            // Apply color with darkening
-            const finalColor = darkenColor(baseColor, darkenFactor);
+            // Apply color
             node.itemStyle = node.itemStyle || {};
-            node.itemStyle.color = finalColor;
+            node.itemStyle.color = nodeColor;
 
-            // For parent nodes, also set a darker border to help define the header area
+            // Set text color based on background brightness
+            const textColor = getTextColorForBackground(nodeColor);
+            node.label = node.label || {};
+            node.label.color = textColor;
+
+            // For parent nodes, set a darker border to help define the header area
             if (isParent) {
-                node.itemStyle.borderColor = darkenColor(baseColor, darkenFactor + 0.2);
+                node.itemStyle.borderColor = darkenColor(nodeColor, 0.2);
             }
+
             if (node.children) {
                 node.children.forEach(child => applyColorsToTree(child, depth + 1));
             }
@@ -1117,8 +1250,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         show: true,
                         formatter: '{b}',
                         fontSize: 11,
-                        overflow: 'truncate',
-                        color: isDark ? '#fff' : '#000'
+                        overflow: 'truncate'
+                        // Color is set per-node based on background brightness
                     },
                     itemStyle: {
                         borderColor: borderColor,
@@ -1943,10 +2076,15 @@ const htmlTemplate = `<!DOCTYPE html>
             { color: '--color-duplicate', label: 'Duplicates' },
             { color: '--color-framework', label: 'Frameworks' },
             { color: '--color-library', label: 'Libraries' },
-            { color: '--color-image', label: 'Images' },
-            { color: '--color-dex', label: 'DEX' },
             { color: '--color-native', label: 'Native Libs' },
+            { color: '--color-image', label: 'Images' },
+            { color: '--color-video', label: 'Videos' },
+            { color: '--color-audio', label: 'Audio' },
+            { color: '--color-mlmodel', label: 'ML Models' },
+            { color: '--color-dex', label: 'DEX' },
             { color: '--color-asset-catalog', label: 'Asset Catalogs' },
+            { color: '--color-font', label: 'Fonts' },
+            { color: '--color-localization', label: 'Localization' },
             { color: '--color-resource', label: 'Resources' },
             { color: '--color-ui', label: 'UI' },
             { color: '--color-other', label: 'Other' }

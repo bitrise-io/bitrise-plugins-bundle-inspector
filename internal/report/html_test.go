@@ -223,26 +223,81 @@ func TestGetFileType(t *testing.T) {
 
 	tests := []struct {
 		filename string
+		path     string
 		expected string
 	}{
-		{"test.framework", "framework"},
-		{"libtest.dylib", "library"},
-		{"libtest.a", "library"},
-		{"libtest.so", "native"},
-		{"image.png", "image"},
-		{"image.jpg", "image"},
-		{"Assets.car", "asset_catalog"},
-		{"Info.plist", "resource"},
-		{"Main.storyboard", "ui"},
-		{"classes.dex", "dex"},
-		{"unknown.xyz", "other"},
+		// Frameworks
+		{"test.framework", "Payload/App.app/Frameworks/test.framework", "framework"},
+		// Libraries
+		{"libtest.dylib", "Payload/App.app/Frameworks/libtest.dylib", "library"},
+		{"libtest.a", "Payload/App.app/libtest.a", "library"},
+		{"libtest.so", "lib/arm64-v8a/libtest.so", "native"},
+		// Images (including new types)
+		{"image.png", "Resources/image.png", "image"},
+		{"image.jpg", "Resources/image.jpg", "image"},
+		{"image.gif", "Resources/image.gif", "image"},
+		{"image.heic", "Resources/image.heic", "image"},
+		{"image.heif", "Resources/image.heif", "image"},
+		{"image.bmp", "Resources/image.bmp", "image"},
+		{"image.tiff", "Resources/image.tiff", "image"},
+		{"image.webp", "Resources/image.webp", "image"},
+		{"image.svg", "Resources/image.svg", "image"},
+		// Asset catalogs
+		{"Assets.car", "Payload/App.app/Assets.car", "asset_catalog"},
+		// Virtual paths under asset catalogs at any depth (NEW)
+		{"AppIcon", "Payload/App.app/Assets.car/AppIcon", "asset_catalog"},
+		{"logo@2x.png", "Payload/App.app/Assets.car/Images/logo@2x.png", "asset_catalog"},
+		{"deep-icon.png", "Payload/App.app/Assets.car/Images/Icons/Deep/deep-icon.png", "asset_catalog"},
+		// Resources
+		{"Info.plist", "Payload/App.app/Info.plist", "resource"},
+		{"config.xml", "res/config.xml", "resource"},
+		{"data.json", "data/data.json", "resource"},
+		// UI
+		{"Main.storyboard", "Base.lproj/Main.storyboard", "ui"},
+		{"View.xib", "Base.lproj/View.xib", "ui"},
+		// Android
+		{"classes.dex", "classes.dex", "dex"},
+		// Fonts (including new types)
+		{"font.ttf", "Fonts/font.ttf", "font"},
+		{"font.otf", "Fonts/font.otf", "font"},
+		{"font.woff", "Fonts/font.woff", "font"},
+		{"font.woff2", "Fonts/font.woff2", "font"},
+		// Video (new)
+		{"video.mp4", "Resources/video.mp4", "video"},
+		{"video.mov", "Resources/video.mov", "video"},
+		{"video.m4v", "Resources/video.m4v", "video"},
+		{"video.avi", "Resources/video.avi", "video"},
+		// Audio (new)
+		{"audio.mp3", "Resources/audio.mp3", "audio"},
+		{"audio.m4a", "Resources/audio.m4a", "audio"},
+		{"audio.wav", "Resources/audio.wav", "audio"},
+		{"audio.aac", "Resources/audio.aac", "audio"},
+		{"audio.caf", "Resources/audio.caf", "audio"},
+		// ML Models (new)
+		{"model.mlmodel", "Models/model.mlmodel", "mlmodel"},
+		{"model.mlmodelc", "Models/model.mlmodelc", "mlmodel"},
+		// Localization (new)
+		{"Localizable.strings", "en.lproj/Localizable.strings", "localization"},
+		{"Plurals.stringsdict", "en.lproj/Plurals.stringsdict", "localization"},
+		{"en.lproj", "en.lproj", "localization"},
+		// Binary virtual paths at any depth (NEW)
+		{"[__TEXT]", "Payload/App.app/MyApp/[__TEXT]", "other"},
+		{"[__DATA]", "Payload/App.app/libtest.dylib/[__DATA]", "library"},
+		{"[__TEXT]", "Payload/App.app/Frameworks/Flutter.framework/Flutter/[__TEXT]", "framework"},
+		// Deeply nested binary virtual paths (ANY DEPTH)
+		{"subsection", "Payload/App.app/MyApp/[__TEXT]/subsection", "other"},
+		{"deep-data", "Payload/App.app/libtest.dylib/[__DATA]/deep/deep-data", "library"},
+		{"nested", "Payload/App.app/Frameworks/Flutter.framework/Flutter/[__TEXT]/code/nested", "framework"},
+		{"native-section", "lib/arm64-v8a/libgame.so/[__TEXT]/native-section", "native"},
+		// Other
+		{"unknown.xyz", "unknown.xyz", "other"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
-			result := formatter.getFileType(tt.filename)
+			result := formatter.getFileType(tt.filename, tt.path)
 			if result != tt.expected {
-				t.Errorf("getFileType(%q) = %q, want %q", tt.filename, result, tt.expected)
+				t.Errorf("getFileType(%q, %q) = %q, want %q", tt.filename, tt.path, result, tt.expected)
 			}
 		})
 	}

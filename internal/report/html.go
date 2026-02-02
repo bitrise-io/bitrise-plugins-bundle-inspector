@@ -281,7 +281,7 @@ func (f *HTMLFormatter) convertNodeToMap(node *types.FileNode, depth int) map[st
 
 	// Add file type for visual mapping
 	if !node.IsDir {
-		result["fileType"] = f.getFileType(node.Name)
+		result["fileType"] = f.getFileType(node.Name, node.Path)
 	}
 
 	// Process children
@@ -301,31 +301,113 @@ func (f *HTMLFormatter) convertNodeToMap(node *types.FileNode, depth int) map[st
 }
 
 // getFileType determines the file type for visual mapping
-func (f *HTMLFormatter) getFileType(filename string) string {
+func (f *HTMLFormatter) getFileType(filename string, path string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	lowerName := strings.ToLower(filename)
+	lowerPath := strings.ToLower(path)
+
+	// Path-based categorization (takes precedence)
+	// Virtual paths under asset catalogs should always be colored as asset_catalog (at any depth)
+	if strings.Contains(lowerPath, ".car/") {
+		return "asset_catalog"
+	}
+
+	// Virtual paths under binaries should inherit from parent (at any depth)
+	// Check if we're anywhere under a binary's virtual structure by looking for "/[" in path
+	// This indicates we're inside a virtual node hierarchy
+	if strings.Contains(path, "/[") {
+		// We're under a binary's virtual structure (at any depth)
+		// Determine the type based on the ancestor binary in the path
+
+		// Check if we're inside a framework (look for .framework/ in path)
+		if strings.Contains(lowerPath, ".framework/") {
+			return "framework"
+		}
+
+		// Check if we're under a .dylib
+		if strings.Contains(lowerPath, ".dylib/") {
+			return "library"
+		}
+
+		// Check if we're under a .so (native library)
+		if strings.Contains(lowerPath, ".so/") {
+			return "native"
+		}
+
+		// Default to other for binary sections (like main app executable)
+		return "other"
+	}
 
 	// Check for framework
 	if strings.HasSuffix(lowerName, ".framework") {
 		return "framework"
 	}
 
+	// Check for localization directories
+	if strings.HasSuffix(lowerName, ".lproj") {
+		return "localization"
+	}
+
 	typeMap := map[string]string{
-		".dylib":      "library",
-		".a":          "library",
-		".so":         "native",
-		".png":        "image",
-		".jpg":        "image",
-		".jpeg":       "image",
-		".car":        "asset_catalog",
-		".plist":      "resource",
+		// Libraries
+		".dylib": "library",
+		".a":     "library",
+		".so":    "native",
+
+		// Images (including .gif which was missing in map)
+		".png":  "image",
+		".jpg":  "image",
+		".jpeg": "image",
+		".gif":  "image",
+		".heic": "image",
+		".heif": "image",
+		".bmp":  "image",
+		".tiff": "image",
+		".tif":  "image",
+		".webp": "image",
+		".svg":  "image",
+
+		// Asset catalogs
+		".car": "asset_catalog",
+
+		// Resources
+		".plist": "resource",
+		".xml":   "resource",
+		".json":  "resource",
+
+		// UI
 		".storyboard": "ui",
 		".xib":        "ui",
-		".dex":        "dex",
-		".xml":        "resource",
-		".json":       "resource",
-		".ttf":        "font",
-		".otf":        "font",
+
+		// Android
+		".dex": "dex",
+
+		// Fonts
+		".ttf":   "font",
+		".otf":   "font",
+		".woff":  "font",
+		".woff2": "font",
+
+		// Video
+		".mp4": "video",
+		".mov": "video",
+		".m4v": "video",
+		".avi": "video",
+
+		// Audio
+		".mp3": "audio",
+		".m4a": "audio",
+		".wav": "audio",
+		".aac": "audio",
+		".caf": "audio",
+
+		// ML Models
+		".mlmodel":  "mlmodel",
+		".mlmodelc": "mlmodel",
+
+		// Localization
+		".strings":     "localization",
+		".stringsdict": "localization",
 	}
 
 	if fileType, ok := typeMap[ext]; ok {
