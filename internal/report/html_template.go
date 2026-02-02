@@ -442,6 +442,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         data-action="switch-tab" data-tab="category" title="Category ` + "`" + `C` + "`" + `">Category <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">C</kbd></button>
                 <button class="tab-button inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 gap-2"
                         data-action="switch-tab" data-tab="files" title="Files ` + "`" + `F` + "`" + `">Files <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">F</kbd></button>
+                <button class="tab-button inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 gap-2"
+                        data-action="switch-tab" data-tab="insights" title="Insights ` + "`" + `I` + "`" + `">Insights <span id="insights-badge" class="hidden sm:inline-flex h-5 items-center rounded-full bg-primary text-primary-foreground px-2 font-mono text-[10px] font-semibold"></span> <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">I</kbd></button>
             </div>
 
             <section id="app-analyzer-panel" class="tab-panel active" aria-labelledby="treemap-heading">
@@ -502,26 +504,27 @@ const htmlTemplate = `<!DOCTYPE html>
                     <div id="files-table-container"></div>
                 </div>
             </section>
-        </div>
 
-        <!-- Insights Section -->
-        <section class="rounded-lg border bg-card text-card-foreground shadow-sm p-6" id="insights-section" aria-labelledby="insights-heading">
-            <div class="flex items-center justify-between mb-6">
-                <h2 id="insights-heading" class="scroll-m-20 text-2xl font-semibold tracking-tight flex items-center gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
-                    Insights & Optimization Opportunities
-                </h2>
-                <button data-action="toggle-all-insights"
-                        class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-9 px-3"
-                        title="Expand/Collapse All ` + "`" + `E` + "`" + `"
-                        aria-label="Expand or collapse all insights (E)">
-                    <svg id="expand-all-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
-                    <span class="hidden sm:inline">Expand All</span>
-                    <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">E</kbd>
-                </button>
-            </div>
-            <div id="insights-list" class="space-y-4" role="list"></div>
-        </section>
+            <section id="insights-panel" class="tab-panel" aria-labelledby="insights-heading">
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 id="insights-heading" class="scroll-m-20 text-2xl font-semibold tracking-tight flex items-center gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
+                            Insights & Optimization Opportunities
+                        </h2>
+                        <button data-action="toggle-all-insights"
+                                class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                                title="Expand/Collapse All ` + "`" + `E` + "`" + `"
+                                aria-label="Expand or collapse all insights (E)">
+                            <svg id="expand-all-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
+                            <span class="hidden sm:inline">Expand All</span>
+                            <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">E</kbd>
+                        </button>
+                    </div>
+                    <div id="insights-list" class="space-y-4" role="list"></div>
+                </div>
+            </section>
+        </div>
 
         </div>
     </main>
@@ -1715,6 +1718,13 @@ const htmlTemplate = `<!DOCTYPE html>
                 const card = createInsightCard(category, group, metadata, index, totalSize);
                 container.appendChild(card);
             });
+
+            // Update insights badge with total count
+            const badge = document.getElementById('insights-badge');
+            if (badge && optimizations.length > 0) {
+                badge.textContent = optimizations.length;
+                badge.classList.remove('hidden');
+            }
         }
 
         // Toggle insight card expansion with dynamic height
@@ -2472,6 +2482,11 @@ const htmlTemplate = `<!DOCTYPE html>
                 case 'f':
                     event.preventDefault();
                     switchToTab('files');
+                    break;
+
+                case 'i':
+                    event.preventDefault();
+                    switchToTab('insights');
                     break;
 
                 case 'e':
