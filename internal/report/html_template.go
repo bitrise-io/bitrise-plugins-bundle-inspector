@@ -1198,23 +1198,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 if (category === 'duplicates') {
                     html += renderDuplicateGroups(group.items);
                 } else {
-                    html += '      <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Affected Files</div>';
-                    html += '      <ul class="space-y-1.5">';
-
-                    // Collect all unique files from all items in this category
-                    const allFiles = new Set();
-                    group.items.forEach(item => {
-                        if (item.files) {
-                            item.files.forEach(file => allFiles.add(file));
-                        }
-                    });
-
-                    Array.from(allFiles).forEach(file => {
-                        const truncated = truncatePath(file, 80);
-                        html += '<li title="' + file + '" class="px-3 py-2 text-xs font-mono text-muted-foreground bg-background/50 border border-border rounded transition-all hover:bg-background hover:border-primary/50 hover:text-foreground">' + truncated + '</li>';
-                    });
-
-                    html += '      </ul>';
+                    html += renderFilesTable(group.items);
                 }
 
                 html += '    </div>';
@@ -1243,7 +1227,70 @@ const htmlTemplate = `<!DOCTYPE html>
             }
         }
 
-        // Render duplicate files grouped by duplicate set
+        // Render files as a shadcn/ui styled table
+        function renderFilesTable(items) {
+            let html = '';
+
+            // Collect all files with their estimated savings
+            const fileMap = new Map();
+            items.forEach(item => {
+                if (item.files && item.files.length > 0) {
+                    const perFileSavings = Math.floor(item.impact / item.files.length);
+                    item.files.forEach(file => {
+                        const existing = fileMap.get(file) || 0;
+                        fileMap.set(file, existing + perFileSavings);
+                    });
+                }
+            });
+
+            // Convert to array and sort by savings descending
+            const files = Array.from(fileMap.entries())
+                .map(([path, savings]) => ({ path, savings, filename: path.split('/').pop() }))
+                .sort((a, b) => b.savings - a.savings);
+
+            if (files.length === 0) {
+                html += '<p class="text-sm text-muted-foreground">No files to display.</p>';
+                return html;
+            }
+
+            // Table container with horizontal scroll for mobile
+            html += '<div class="rounded-md border overflow-hidden">';
+            html += '<table class="w-full text-sm">';
+
+            // Table header
+            html += '<thead class="bg-muted/50">';
+            html += '<tr class="border-b border-border">';
+            html += '<th class="text-left font-medium text-muted-foreground px-4 py-3">File</th>';
+            html += '<th class="text-right font-medium text-muted-foreground px-4 py-3 w-32">Savings</th>';
+            html += '</tr>';
+            html += '</thead>';
+
+            // Table body
+            html += '<tbody class="divide-y divide-border">';
+            files.forEach((file, idx) => {
+                const rowClass = idx %% 2 === 0 ? 'bg-background' : 'bg-muted/20';
+                html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
+                html += '<td class="px-4 py-3">';
+                html += '<div class="flex flex-col gap-0.5">';
+                html += '<span class="font-medium text-foreground truncate max-w-md" title="' + file.path + '">' + file.filename + '</span>';
+                html += '<span class="text-xs text-muted-foreground font-mono truncate max-w-md">' + truncatePath(file.path, 60) + '</span>';
+                html += '</div>';
+                html += '</td>';
+                html += '<td class="px-4 py-3 text-right">';
+                html += '<span class="inline-flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded">';
+                html += formatBytes(file.savings);
+                html += '</span>';
+                html += '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            html += '</table>';
+            html += '</div>';
+
+            return html;
+        }
+
+        // Render duplicate files grouped by duplicate set as tables
         function renderDuplicateGroups(items) {
             let html = '';
 
@@ -1258,20 +1305,54 @@ const htmlTemplate = `<!DOCTYPE html>
                 const filename = firstFile.split('/').pop();
                 const copyCount = item.files.length;
                 const wastedSize = formatBytes(item.impact);
+                const perCopySavings = Math.floor(item.impact / (copyCount - 1));
 
-                html += '<div class="mb-4 pb-3 border-b border-border last:mb-0 last:pb-0 last:border-0">';
-                html += '  <div class="flex justify-between items-center mb-2 p-2 bg-background/50 rounded flex-wrap gap-2">';
-                html += '    <span class="font-semibold text-xs font-mono truncate max-w-[60%%]" title="' + filename + '">' + filename + '</span>';
-                html += '    <span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded whitespace-nowrap">' + copyCount + ' copies · ' + wastedSize + '</span>';
-                html += '  </div>';
-                html += '  <ul class="space-y-1.5">';
+                html += '<div class="mb-6 last:mb-0">';
 
-                item.files.forEach(file => {
-                    const truncated = truncatePath(file, 80);
-                    html += '<li title="' + file + '" class="px-3 py-2 text-xs font-mono text-muted-foreground bg-background/50 border border-border rounded transition-all hover:bg-background hover:border-primary/50 hover:text-foreground">' + truncated + '</li>';
+                // Group header
+                html += '<div class="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-border">';
+                html += '<div class="flex items-center gap-2 min-w-0">';
+                html += '<span class="w-5 h-5 text-muted-foreground">' + icons.copy + '</span>';
+                html += '<span class="font-semibold text-sm truncate" title="' + filename + '">' + filename + '</span>';
+                html += '</div>';
+                html += '<div class="flex items-center gap-2 flex-shrink-0">';
+                html += '<span class="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">' + copyCount + ' copies</span>';
+                html += '<span class="text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded-md">' + wastedSize + ' wasted</span>';
+                html += '</div>';
+                html += '</div>';
+
+                // Table for duplicate locations
+                html += '<div class="rounded-md border overflow-hidden">';
+                html += '<table class="w-full text-sm">';
+                html += '<thead class="bg-muted/50">';
+                html += '<tr class="border-b border-border">';
+                html += '<th class="text-left font-medium text-muted-foreground px-4 py-2 text-xs">Location</th>';
+                html += '<th class="text-right font-medium text-muted-foreground px-4 py-2 text-xs w-32">Status</th>';
+                html += '</tr>';
+                html += '</thead>';
+                html += '<tbody class="divide-y divide-border">';
+
+                item.files.forEach((file, fileIdx) => {
+                    const rowClass = fileIdx %% 2 === 0 ? 'bg-background' : 'bg-muted/20';
+                    const isOriginal = fileIdx === 0;
+
+                    html += '<tr class="' + rowClass + ' hover:bg-muted/40 transition-colors">';
+                    html += '<td class="px-4 py-2">';
+                    html += '<span class="text-xs font-mono text-muted-foreground truncate block max-w-lg" title="' + file + '">' + truncatePath(file, 70) + '</span>';
+                    html += '</td>';
+                    html += '<td class="px-4 py-2 text-right">';
+                    if (isOriginal) {
+                        html += '<span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Original</span>';
+                    } else {
+                        html += '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Duplicate</span>';
+                    }
+                    html += '</td>';
+                    html += '</tr>';
                 });
 
-                html += '  </ul>';
+                html += '</tbody>';
+                html += '</table>';
+                html += '</div>';
                 html += '</div>';
             });
 
