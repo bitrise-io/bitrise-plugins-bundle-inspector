@@ -61,4 +61,4 @@ release:
     name: bitrise-plugins-bundle-inspector
   draft: false
   prerelease: auto
-  name_template: "{{.ProjectName}} v{{.Version}}"
+  name_template: "v{{.Version}}"
