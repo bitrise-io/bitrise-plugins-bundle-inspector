@@ -419,14 +419,27 @@ var (
 )
 ```
 
-#### 2. Commit Version Bump
+#### 2. Update Plugin Configuration
+
+**IMPORTANT:** Update `bitrise-plugin.yml` with the new version number in all executable URLs:
+
+```yaml
+executable:
+  osx: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-x86_64
+  osx-arm64: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-arm64
+  linux: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Linux-x86_64
+```
+
+Replace `0.2.0` with your new version number. This is **required** - without this update, Bitrise plugin installation will fail with a 404 error.
+
+#### 3. Commit Version Bump
 
 ```bash
-git add cmd/bundle-inspector/main.go
+git add cmd/bundle-inspector/main.go bitrise-plugin.yml
 git commit -m "chore: bump version to 0.2.0"
 ```
 
-#### 3. Ensure Clean Git State
+#### 4. Ensure Clean Git State
 
 goreleaser requires a clean working directory. Check and clean up:
 
@@ -445,13 +458,13 @@ git rm obsolete-file.md
 git commit -m "chore: cleanup before release"
 ```
 
-#### 4. Push Changes
+#### 5. Push Changes
 
 ```bash
 git push origin main
 ```
 
-#### 5. Create Git Tag
+#### 6. Create Git Tag
 
 Create an annotated tag with release notes:
 
@@ -472,7 +485,7 @@ Technical changes:
 "
 ```
 
-#### 6. Run goreleaser
+#### 7. Run goreleaser
 
 Export GitHub token and run goreleaser:
 
@@ -493,7 +506,7 @@ This will:
 - Create GitHub release
 - Upload all binaries as release assets
 
-#### 7. Verify Release
+#### 8. Verify Release
 
 ```bash
 # View release details
@@ -504,17 +517,6 @@ gh release view 0.2.0 --json assets --jq '.assets[].name'
 
 # Open in browser
 gh release view 0.2.0 --web
-```
-
-#### 8. Update Plugin Configuration (if needed)
-
-If you have a `bitrise-plugin.yml` file, update the executable URLs:
-
-```yaml
-executable:
-  osx: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-x86_64
-  osx-arm64: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Darwin-arm64
-  linux: https://github.com/bitrise-io/bitrise-plugins-bundle-inspector/releases/download/0.2.0/bundle-inspector-Linux-x86_64
 ```
 
 ### goreleaser Configuration
