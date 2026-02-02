@@ -440,6 +440,8 @@ const htmlTemplate = `<!DOCTYPE html>
                         data-action="switch-tab" data-tab="app-analyzer" title="App Analyzer ` + "`" + `A` + "`" + `">App Analyzer <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">A</kbd></button>
                 <button class="tab-button inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 gap-2"
                         data-action="switch-tab" data-tab="category" title="Category ` + "`" + `C` + "`" + `">Category <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">C</kbd></button>
+                <button class="tab-button inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 gap-2"
+                        data-action="switch-tab" data-tab="files" title="Files ` + "`" + `F` + "`" + `">Files <kbd class="hidden sm:inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">F</kbd></button>
             </div>
 
             <section id="app-analyzer-panel" class="tab-panel active" aria-labelledby="treemap-heading">
@@ -474,6 +476,30 @@ const htmlTemplate = `<!DOCTYPE html>
                         <h2 class="scroll-m-20 text-xl font-semibold tracking-tight mb-6">Top Extensions</h2>
                         <div id="extension-chart" class="chart" role="img" aria-label="Top file extensions bar chart"></div>
                     </div>
+                </div>
+            </section>
+
+            <section id="files-panel" class="tab-panel" aria-labelledby="files-heading">
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 hover:-translate-y-0.5 transition-transform duration-300">
+                    <h2 id="files-heading" class="scroll-m-20 text-2xl font-semibold tracking-tight mb-2">File Breakdown</h2>
+                    <p class="text-sm text-muted-foreground leading-relaxed mb-4">All files in the bundle sorted by size</p>
+
+                    <!-- Search Bar -->
+                    <div class="mb-4">
+                        <label for="files-search-input" class="sr-only">Search files</label>
+                        <div class="relative">
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <input type="text" id="files-search-input"
+                                   class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                   placeholder="Search files by path or extension..."
+                                   data-action="filter-files">
+                        </div>
+                    </div>
+
+                    <!-- Files Table -->
+                    <div id="files-table-container"></div>
                 </div>
             </section>
         </div>
@@ -2100,6 +2126,151 @@ const htmlTemplate = `<!DOCTYPE html>
             });
         }
 
+        // Extract all files from tree into flat list
+        function extractAllFiles(node, parentPath = '') {
+            const files = [];
+
+            if (!node) return files;
+
+            const currentPath = parentPath ? parentPath + '/' + node.name : node.name;
+
+            // If it's a file (not a directory), add it
+            if (!node.children || node.children.length === 0) {
+                files.push({
+                    path: currentPath,
+                    filename: node.name,
+                    type: node.fileType || 'other',
+                    size: node.value || 0
+                });
+            }
+
+            // Recursively process children
+            if (node.children) {
+                node.children.forEach(child => {
+                    const childFiles = extractAllFiles(child, currentPath);
+                    files.push(...childFiles);
+                });
+            }
+
+            return files;
+        }
+
+        // Get all files from the file tree
+        function getAllFiles() {
+            if (!reportData.fileTree) return [];
+
+            let allFiles = [];
+
+            // Handle both single node and array of nodes
+            if (Array.isArray(reportData.fileTree)) {
+                reportData.fileTree.forEach(rootNode => {
+                    allFiles.push(...extractAllFiles(rootNode, ''));
+                });
+            } else {
+                allFiles = extractAllFiles(reportData.fileTree, '');
+            }
+
+            // Sort by size descending (largest first)
+            allFiles.sort((a, b) => b.size - a.size);
+
+            return allFiles;
+        }
+
+        // State for files table
+        let allFilesData = [];
+        let filteredFilesData = [];
+
+        // Render files table
+        function renderFilesTable() {
+            const container = document.getElementById('files-table-container');
+            if (!container) return;
+
+            const files = filteredFilesData.length > 0 ? filteredFilesData : allFilesData;
+
+            if (files.length === 0) {
+                container.innerHTML = '<p class="text-sm text-muted-foreground text-center py-8">No files found</p>';
+                return;
+            }
+
+            const columns = [
+                {
+                    key: 'path',
+                    label: 'Path',
+                    sortable: true,
+                    render: (row) => {
+                        return '<div class="max-w-2xl"><div class="text-sm font-mono text-foreground py-0.5 break-all">' + row.path + '</div></div>';
+                    }
+                },
+                {
+                    key: 'type',
+                    label: 'Type',
+                    width: 'w-32',
+                    sortable: true,
+                    render: (row) => {
+                        const typeLabels = {
+                            'framework': 'Framework',
+                            'library': 'Library',
+                            'native': 'Native',
+                            'image': 'Image',
+                            'asset_catalog': 'Asset Catalog',
+                            'resource': 'Resource',
+                            'ui': 'UI',
+                            'dex': 'DEX',
+                            'font': 'Font',
+                            'video': 'Video',
+                            'audio': 'Audio',
+                            'mlmodel': 'ML Model',
+                            'localization': 'Localization',
+                            'duplicate': 'Duplicate',
+                            'other': 'Other'
+                        };
+                        const label = typeLabels[row.type] || 'Other';
+                        return '<span class="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">' + label + '</span>';
+                    }
+                },
+                {
+                    key: 'size',
+                    label: 'Size',
+                    align: 'right',
+                    width: 'w-32',
+                    sortable: true,
+                    render: (row) => {
+                        return '<span class="text-sm font-semibold">' + formatBytes(row.size) + '</span>';
+                    }
+                }
+            ];
+
+            container.innerHTML = createDataTable('files-table', files, columns, {
+                pageSize: 25,
+                defaultSort: 'size',
+                defaultSortDir: 'desc'
+            });
+        }
+
+        // Filter files based on search query
+        function filterFiles(query) {
+            if (!query || query.trim() === '') {
+                filteredFilesData = [];
+                renderFilesTable();
+                return;
+            }
+
+            const lowerQuery = query.toLowerCase();
+            filteredFilesData = allFilesData.filter(file => {
+                return file.path.toLowerCase().includes(lowerQuery) ||
+                       file.filename.toLowerCase().includes(lowerQuery) ||
+                       file.type.toLowerCase().includes(lowerQuery);
+            });
+
+            renderFilesTable();
+        }
+
+        // Initialize files table
+        function initFilesTable() {
+            allFilesData = getAllFiles();
+            renderFilesTable();
+        }
+
         // Legend configuration - colors and labels
         const LEGEND_ITEMS = [
             { color: '--color-duplicate', label: 'Duplicates' },
@@ -2178,8 +2349,23 @@ const htmlTemplate = `<!DOCTYPE html>
                 renderInsights(reportData.optimizations);
             }
 
+            // Initialize files table
+            initFilesTable();
+
             // Set up event delegation
             setupEventDelegation();
+
+            // Set up files search with debouncing
+            const filesSearchInput = document.getElementById('files-search-input');
+            if (filesSearchInput) {
+                let debounceTimer;
+                filesSearchInput.addEventListener('input', function(e) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        filterFiles(e.target.value);
+                    }, 300);
+                });
+            }
         });
 
         // Event delegation - single listener for all data-action elements
