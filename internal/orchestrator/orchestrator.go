@@ -151,11 +151,31 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 	// Start with existing optimizations (from analyzers like strip-symbols, etc.)
 	optimizations := report.Optimizations
 
-	// Add duplicate file optimizations
+	// Create duplicate categorizer for intelligent filtering
+	categorizer := detector.NewDuplicateCategorizer()
+
+	// Add duplicate file optimizations (with intelligent filtering)
 	for _, dup := range report.Duplicates {
+		// Evaluate duplicate with categorization rules
+		filterResult := categorizer.EvaluateDuplicate(dup)
+
+		// Skip if should be filtered out (architectural pattern or third-party SDK)
+		if filterResult.ShouldFilter {
+			// Optional: Log filtered duplicates for debugging
+			// o.Logger.Debug("Filtered duplicate: %s (reason: %s)", dup.Files[0], filterResult.Reason)
+			continue
+		}
+
+		// This is an actionable duplicate - create optimization
+		severity := filterResult.Priority
+		if severity == "" {
+			// No priority specified by rule, calculate based on size
+			severity = getSeverity(dup.WastedSize, report.ArtifactInfo.Size)
+		}
+
 		optimizations = append(optimizations, types.Optimization{
 			Category:    "duplicates",
-			Severity:    getSeverity(dup.WastedSize, report.ArtifactInfo.Size),
+			Severity:    severity,
 			Title:       fmt.Sprintf("Remove %d duplicate copies of files", dup.Count-1),
 			Description: fmt.Sprintf("Found %d identical files (%s each)", dup.Count, util.FormatBytes(dup.Size)),
 			Impact:      dup.WastedSize,
