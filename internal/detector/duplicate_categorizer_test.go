@@ -340,8 +340,8 @@ func TestRuleRegistry_Evaluate(t *testing.T) {
 			name: "No rule matches - default actionable",
 			dup: types.DuplicateSet{
 				Files: []string{
-					"Payload/App.app/image.png",
-					"Payload/App.app/Resources/image.png",
+					"Payload/App.app/data.txt",
+					"Payload/App.app/Resources/data.txt",
 				},
 				Count: 2,
 			},
@@ -410,9 +410,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 7 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7)
+	// Should have 9 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, PR 3: Rules 8-9)
 	rules := registry.GetRules()
-	require.Equal(t, 7, len(rules), "Should have 7 default rules")
+	require.Equal(t, 9, len(rules), "Should have 9 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -427,6 +427,8 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-5-framework-scripts"], "Should have Framework scripts rule")
 	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have Framework metadata rule")
 	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
+	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have Extension duplication rule")
+	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
 }
 
 func TestLocalizationRule(t *testing.T) {
@@ -757,4 +759,238 @@ func TestThirdPartySDKRule_Integration(t *testing.T) {
 	// Should keep app logo.png (1 set)
 	assert.Equal(t, 1, len(actionable), "Expected 1 actionable duplicate")
 	assert.Contains(t, actionable[0].Files[0], "logo.png", "Expected logo.png to be actionable")
+}
+
+func TestExtensionDuplicationRule(t *testing.T) {
+	rule := NewExtensionDuplicationRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		size             int64
+		wantShouldFilter bool
+		wantPriority     string
+	}{
+		{
+			name: "Large duplication between app and extension - high priority",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/PlugIns/ShareExtension.appex/logo.png",
+			},
+			size:             600 * 1024, // 600 KB
+			wantShouldFilter: false,       // Actionable
+			wantPriority:     "high",
+		},
+		{
+			name: "Medium duplication between app and extension - medium priority",
+			files: []string{
+				"Payload/App.app/icon.png",
+				"Payload/App.app/PlugIns/Widget.appex/icon.png",
+			},
+			size:             200 * 1024, // 200 KB
+			wantShouldFilter: false,
+			wantPriority:     "medium",
+		},
+		{
+			name: "Small duplication between app and extension - low priority",
+			files: []string{
+				"Payload/App.app/config.json",
+				"Payload/App.app/PlugIns/Share.appex/config.json",
+			},
+			size:             50 * 1024, // 50 KB
+			wantShouldFilter: false,
+			wantPriority:     "low",
+		},
+		{
+			name: "Duplication between multiple extensions - actionable",
+			files: []string{
+				"Payload/App.app/PlugIns/Share.appex/image.png",
+				"Payload/App.app/PlugIns/Widget.appex/image.png",
+			},
+			size:             150 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "medium",
+		},
+		{
+			name: "Duplication between framework and extension - actionable",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK.framework/logo.png",
+				"Payload/App.app/PlugIns/Widget.appex/logo.png",
+			},
+			size:             150 * 1024, // >100KB for medium priority
+			wantShouldFilter: false,
+			wantPriority:     "medium",
+		},
+		{
+			name: "No extension involvement - skip",
+			files: []string{
+				"Payload/App.app/image.png",
+				"Payload/App.app/Resources/image.png",
+			},
+			size:             100 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "", // No priority set
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  tt.size,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantPriority != "" {
+				assert.Equal(t, tt.wantPriority, result.Priority, "Priority mismatch")
+			}
+		})
+	}
+}
+
+func TestAssetDuplicationRule(t *testing.T) {
+	rule := NewAssetDuplicationRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		size             int64
+		wantShouldFilter bool
+		wantPriority     string
+	}{
+		{
+			name: "Large PNG duplication in same bundle - high priority",
+			files: []string{
+				"Payload/App.app/image.png",
+				"Payload/App.app/Resources/image.png",
+			},
+			size:             600 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "high",
+		},
+		{
+			name: "Audio file duplication in same context - medium priority",
+			files: []string{
+				"Payload/App.app/audio.mp3",
+				"Payload/App.app/Sounds/audio.mp3",
+			},
+			size:             200 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "medium",
+		},
+		{
+			name: "JSON asset duplication - low priority",
+			files: []string{
+				"Payload/App.app/config.json",
+				"Payload/App.app/Resources/config.json",
+			},
+			size:             10 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "low",
+		},
+		{
+			name: "PDF asset duplication in same bundle",
+			files: []string{
+				"Payload/App.app/Assets/icon.pdf",
+				"Payload/App.app/Resources/icon.pdf",
+			},
+			size:             150 * 1024, // >100KB for medium priority
+			wantShouldFilter: false,
+			wantPriority:     "medium",
+		},
+		{
+			name: "SVG duplication in same context",
+			files: []string{
+				"Payload/App.app/logo.svg",
+				"Payload/App.app/Images/logo.svg",
+			},
+			size:             50 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "low",
+		},
+		{
+			name: "Not an asset file - skip",
+			files: []string{
+				"Payload/App.app/file.txt",
+				"Payload/App.app/Resources/file.txt",
+			},
+			size:             100 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "",
+		},
+		{
+			name: "Assets in different bundles - skip (not same bundle)",
+			files: []string{
+				"Payload/App.app/image.png",
+				"Payload/OtherApp.app/image.png",
+			},
+			size:             100 * 1024,
+			wantShouldFilter: false,
+			wantPriority:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  tt.size,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantPriority != "" {
+				assert.Equal(t, tt.wantPriority, result.Priority, "Priority mismatch")
+			}
+		})
+	}
+}
+
+func TestPriorityCalculation(t *testing.T) {
+	tests := []struct {
+		name     string
+		size     int64
+		expected string
+	}{
+		{
+			name:     "Large file (>500KB)",
+			size:     600 * 1024,
+			expected: "high",
+		},
+		{
+			name:     "Medium file (100-500KB)",
+			size:     250 * 1024,
+			expected: "medium",
+		},
+		{
+			name:     "Small file (<100KB)",
+			size:     50 * 1024,
+			expected: "low",
+		},
+		{
+			name:     "Exactly 500KB",
+			size:     500 * 1024,
+			expected: "medium",
+		},
+		{
+			name:     "Exactly 100KB",
+			size:     100 * 1024,
+			expected: "low",
+		},
+		{
+			name:     "Just over 500KB",
+			size:     501 * 1024,
+			expected: "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculatePriority(tt.size)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

@@ -41,6 +41,10 @@ func NewRuleRegistry() *RuleRegistry {
 	registry.Register(NewFrameworkMetadataRule())
 	registry.Register(NewThirdPartySDKRule())
 
+	// Register actionable rules (PR 3: Rules 8-9)
+	registry.Register(NewExtensionDuplicationRule())
+	registry.Register(NewAssetDuplicationRule())
+
 	return registry
 }
 
