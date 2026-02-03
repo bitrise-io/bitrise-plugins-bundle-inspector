@@ -12,7 +12,7 @@ Bundle Inspector is a **Bitrise CLI plugin** that analyzes mobile app artifacts 
 1. **Auto-detection**: Automatically finds artifacts from Bitrise environment variables
 2. **Multiple Output Formats**: Text, JSON, Markdown, HTML (with interactive treemaps)
 3. **Automatic Export**: Reports sent to Bitrise deploy directory for easy access
-4. **Deep Analysis**: iOS Mach-O parsing, framework dependencies, Assets.car analysis
+4. **Deep Analysis**: iOS Mach-O parsing, framework dependencies, Assets.car analysis, Android DEX class-level parsing
 5. **Optimization Recommendations**: Actionable suggestions with severity levels
 
 ## Architecture
@@ -34,6 +34,7 @@ bundle-inspector/
 │   │   │   ├── assetcar/     # Assets.car parser
 │   │   │   └── framework/    # Framework dependency analyzer
 │   │   └── android/          # APK, AAB analyzers
+│   │       └── dex/          # DEX file parser (class-level analysis)
 │   ├── bitrise/              # Bitrise CI integration (env.go)
 │   ├── detector/             # Duplicate & bloat detection
 │   ├── orchestrator/         # Analysis coordination
@@ -281,8 +282,16 @@ go build -o bundle-inspector ./cmd/bundle-inspector
 - **Assets.car**: Extracts assets, categorizes by type (@1x, @2x, @3x) and format
 
 ### Android Analysis
-- **APK**: ZIP-based analysis, DEX enumeration, native library detection
-- **AAB**: Module detection, base/dynamic features
+- **APK**: ZIP-based analysis, DEX class-level parsing, native library detection
+- **AAB**: Module detection, base/dynamic features, DEX class-level parsing
+- **DEX Parsing**:
+  - Parses all DEX files (classes.dex, classes2.dex, ...) and merges into unified virtual "Dex/" directory
+  - Class-level breakdown with package hierarchy (e.g., Dex/com/example/app/MainActivity.class)
+  - Private size calculation: size 100% attributable to each class (methods, fields, annotations)
+  - _Unmapped node: shows shared data structures (string pools, type descriptors) that can't be attributed to specific classes
+  - Obfuscation detection: identifies when >50% of classes have single-letter names
+  - Metadata tracking: method count, field count, source DEX file per class
+  - Uses dextk library (github.com/csnewman/dextk) for pure-Go DEX parsing
 - **Architecture Detection**: Groups .so files by architecture (arm64-v8a, armeabi-v7a, x86, x86_64)
 
 ### Duplicate Detection

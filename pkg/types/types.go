@@ -42,13 +42,14 @@ type SizeBreakdown struct {
 
 // FileNode represents a file or directory in the artifact tree.
 type FileNode struct {
-	Path       string      `json:"path"`
-	Name       string      `json:"name"`
-	Size       int64       `json:"size"`
-	IsDir      bool        `json:"is_dir"`
-	Children   []*FileNode `json:"children,omitempty"`
-	IsVirtual  bool        `json:"is_virtual,omitempty"`  // True for assets expanded from .car files
-	SourceFile string      `json:"source_file,omitempty"` // Parent .car file path for virtual nodes
+	Path       string                 `json:"path"`
+	Name       string                 `json:"name"`
+	Size       int64                  `json:"size"`
+	IsDir      bool                   `json:"is_dir"`
+	Children   []*FileNode            `json:"children,omitempty"`
+	IsVirtual  bool                   `json:"is_virtual,omitempty"`  // True for assets expanded from .car files or DEX classes
+	SourceFile string                 `json:"source_file,omitempty"` // Parent .car file path or DEX file for virtual nodes
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`    // Additional metadata (e.g., for DEX classes)
 }
 
 // DuplicateSet represents a group of duplicate files.
@@ -129,4 +130,33 @@ type AssetInfo struct {
 	PixelWidth    int    `json:"pixel_width,omitempty"`
 	PixelHeight   int    `json:"pixel_height,omitempty"`
 	SHA1Digest    string `json:"sha1_digest,omitempty"`
+}
+
+// DexInfo contains parsed DEX file information.
+type DexInfo struct {
+	SourceFile       string                 `json:"source_file"`
+	Classes          []DexClass             `json:"classes"`
+	TotalPrivateSize int64                  `json:"total_private_size"`
+	TotalFileSize    int64                  `json:"total_file_size"`
+	IsObfuscated     bool                   `json:"is_obfuscated"`
+	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// DexClass represents a single class in a DEX file.
+type DexClass struct {
+	ClassName   string                 `json:"class_name"`
+	PackageName string                 `json:"package_name"`
+	PrivateSize int64                  `json:"private_size"`
+	MethodCount int                    `json:"method_count"`
+	FieldCount  int                    `json:"field_count"`
+	SourceDEX   string                 `json:"source_dex"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// MergedDEXInfo contains information from multiple DEX files.
+type MergedDEXInfo struct {
+	Classes          []DexClass `json:"classes"`
+	TotalPrivateSize int64      `json:"total_private_size"`
+	TotalFileSize    int64      `json:"total_file_size"`
+	DEXFileCount     int        `json:"dex_file_count"`
 }

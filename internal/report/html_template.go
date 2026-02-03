@@ -1242,6 +1242,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         const name = SafeHTML.escapeText(info.name);
                         const path = SafeHTML.escapeText(info.data.path || info.name);
                         const isDuplicate = info.data.isDuplicate || false;
+                        const metadata = info.data.metadata || {};
                         const treePathInfo = info.treePathInfo || [];
                         let percentage = '0.0';
 
@@ -1256,6 +1257,26 @@ const htmlTemplate = `<!DOCTYPE html>
                                'Path: ' + path + '<br/>' +
                                'Size: ' + formatBytes(value) + '<br/>' +
                                percentage + '%% of total';
+
+                        // DEX class metadata
+                        if (metadata.class_type === 'dex_class') {
+                            result += '<br/><br/><em>DEX Class</em><br/>';
+                            result += 'Methods: ' + (metadata.method_count || 0) + '<br/>';
+                            result += 'Fields: ' + (metadata.field_count || 0) + '<br/>';
+                            if (metadata.source_dex) {
+                                result += 'Source: ' + SafeHTML.escapeText(metadata.source_dex) + '<br/>';
+                            }
+                            result += '<br/><small style="color: var(--color-muted);">Private size only</small>';
+                        }
+
+                        // Unmapped DEX node metadata
+                        if (metadata.class_type === 'unmapped_dex') {
+                            result += '<br/><br/><em>Shared Data</em><br/>';
+                            if (metadata.description) {
+                                result += SafeHTML.escapeText(metadata.description) + '<br/>';
+                            }
+                            result += '<br/><small style="color: var(--color-muted);">Cannot be attributed to specific classes</small>';
+                        }
 
                         if (isDuplicate) {
                             result += '<br/><span style="color: var(--color-duplicate); font-weight: bold;">⚠ Duplicate file</span>';

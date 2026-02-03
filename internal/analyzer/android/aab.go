@@ -13,6 +13,7 @@ import (
 
 	"github.com/shogo82148/androidbinary"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/android/dex"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -59,11 +60,26 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Build file tree and calculate sizes
 	fileTree, uncompressedSize := util.BuildZipFileTree(&zipReader.Reader)
 
-	// Detect modules
+	// Parse DEX files and create virtual tree
+	dexTree, totalDEXSize, err := dex.ParseAndMerge(path, fileTree)
+	if err != nil {
+		// Non-fatal: keep original .dex files if parsing fails
+		fmt.Fprintf(os.Stderr, "DEX parsing failed: %v\n", err)
+	} else {
+		// Replace individual .dex files with virtual Dex/ directory
+		fileTree = dex.ReplaceDEXFilesWithVirtual(fileTree, dexTree)
+	}
+
+	// Detect modules (after DEX replacement)
 	modules := detectModules(fileTree)
 
-	// Create size breakdown
+	// Create size breakdown (after DEX replacement)
 	sizeBreakdown := categorizeAABSizes(fileTree)
+
+	// Update DEX size if we parsed it
+	if totalDEXSize > 0 {
+		sizeBreakdown.DEX = totalDEXSize
+	}
 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)

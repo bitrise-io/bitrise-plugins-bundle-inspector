@@ -13,6 +13,7 @@ A Bitrise CLI plugin that analyzes mobile artifacts (iOS and Android) for size o
 - **Auto-Detection** - Automatically detects artifact paths from Bitrise environment
 - **Automatic Export** - Reports exported to Bitrise deploy directory for easy access
 - **iOS Advanced Analysis** - Mach-O binary parsing, framework dependencies, Assets.car analysis
+- **Android DEX Class Analysis** - Class-level breakdown with package hierarchy, private size calculation
 
 ## Quick Start 🚀
 
@@ -863,6 +864,97 @@ Contributions are welcome! Please:
 2. Create a feature branch
 3. Make your changes with tests
 4. Submit a pull request
+
+## Advanced Features
+
+### Android DEX Class Analysis
+
+Bundle Inspector parses Android DEX files to provide class-level breakdown and insights.
+
+#### What is DEX Parsing?
+
+DEX (Dalvik Executable) files contain compiled Java/Kotlin code for Android apps. Bundle Inspector parses these files to show:
+
+- **Class-level breakdown**: Individual class sizes within the Dex/ virtual directory
+- **Package hierarchy**: Classes organized by package (e.g., `Dex/com/example/app/MainActivity.class`)
+- **Private size**: Size 100% attributable to each class (methods, fields, annotations)
+- **Unmapped data**: Shared structures (string pools, type descriptors) shown in `_Unmapped` node
+
+#### Output Structure
+
+**Before DEX parsing:**
+```
+file_tree:
+  - classes.dex (10.4 MB)
+  - classes2.dex (4.5 MB)
+  - classes3.dex (2.1 MB)
+```
+
+**After DEX parsing:**
+```
+file_tree:
+  - Dex/ (17.0 MB total - same as original DEX files)
+    - com/
+      - example/
+        - app/
+          - MainActivity.class (45 KB private size)
+          - GameEngine.class (120 KB private size)
+    - androidx/
+      - compose/
+        - ui/
+          - ...
+    - _Unmapped/ (2.8 MB - shared data)
+```
+
+#### Understanding Private Size
+
+**Private size** includes only data structures 100% attributable to each class:
+- class_def entry (32 bytes per class)
+- class_data_item (fields and methods metadata)
+- Method bytecode (code_item structures)
+- Class-specific annotations
+
+**Unmapped data** represents shared structures that benefit multiple classes:
+- String pools (shared strings)
+- Type descriptors (shared type information)
+- Proto signatures (shared method signatures)
+
+**Why the difference?**
+DEX format optimizes by sharing common data across classes. For example, the string "android.app.Activity" appears once in the string pool, but is referenced by hundreds of classes.
+
+**Calculation:**
+```
+Total DEX Size = Sum of Class Private Sizes + Unmapped Data
+17.0 MB = 14.2 MB (classes) + 2.8 MB (unmapped)
+```
+
+#### Visualization in HTML Report
+
+The interactive HTML treemap shows:
+- DEX classes organized by package hierarchy
+- Brown color coding for DEX files
+- Tooltips with class metadata:
+  - Method count
+  - Field count
+  - Source DEX file (for multi-DEX apps)
+  - "Private size only" note
+- _Unmapped node with explanation tooltip
+
+#### Use Cases
+
+1. **Identify code bloat**: Find largest classes consuming app size
+2. **Track code growth**: Monitor class sizes across builds
+3. **Optimize ProGuard/R8**: Target specific classes for shrinking
+4. **Debug multi-DEX**: See which classes are in which DEX file
+5. **Compare libraries**: Analyze third-party library code size
+
+#### Technical Details
+
+- Uses `github.com/csnewman/dextk` library for pure-Go DEX parsing
+- Handles multi-DEX apps (merges classes.dex, classes2.dex, etc.)
+- Graceful degradation: Falls back to showing original .dex files if parsing fails
+- Obfuscation detection: Identifies ProGuard/R8-obfuscated apps
+- Non-blocking: Parsing happens during analysis, no extra commands needed
 
 ## Troubleshooting
 

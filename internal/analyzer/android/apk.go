@@ -11,6 +11,7 @@ import (
 
 	"github.com/shogo82148/androidbinary/apk"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/android/dex"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -57,8 +58,23 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Build file tree and calculate sizes
 	fileTree, uncompressedSize := util.BuildZipFileTree(&zipReader.Reader)
 
-	// Create size breakdown
+	// Parse DEX files and create virtual tree
+	dexTree, totalDEXSize, err := dex.ParseAndMerge(path, fileTree)
+	if err != nil {
+		// Non-fatal: keep original .dex files if parsing fails
+		fmt.Fprintf(os.Stderr, "DEX parsing failed: %v\n", err)
+	} else {
+		// Replace individual .dex files with virtual Dex/ directory
+		fileTree = dex.ReplaceDEXFilesWithVirtual(fileTree, dexTree)
+	}
+
+	// Create size breakdown (after DEX replacement)
 	sizeBreakdown := categorizeAPKSizes(fileTree)
+
+	// Update DEX size if we parsed it
+	if totalDEXSize > 0 {
+		sizeBreakdown.DEX = totalDEXSize
+	}
 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)
@@ -159,6 +175,11 @@ func categorizeAPKDirectory(node *types.FileNode, breakdown *types.SizeBreakdown
 	dirName := strings.ToLower(node.Name)
 
 	switch dirName {
+	case "dex":
+		// Virtual DEX directory with parsed classes
+		breakdown.DEX += node.Size
+		breakdown.ByCategory["DEX Files"] += node.Size
+		return true
 	case "lib":
 		breakdown.Libraries += node.Size
 		breakdown.ByCategory["Native Libraries"] += node.Size
