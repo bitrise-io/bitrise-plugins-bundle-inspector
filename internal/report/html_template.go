@@ -631,6 +631,54 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         // ============================================================
+        // Safe Storage - localStorage wrapper for sandboxed contexts
+        // ============================================================
+        const SafeStorage = {
+            storage: {},
+            isLocalStorageAvailable: true,
+
+            init() {
+                // Test localStorage availability on initialization
+                try {
+                    const testKey = '__test__';
+                    localStorage.setItem(testKey, 'test');
+                    localStorage.removeItem(testKey);
+                    this.isLocalStorageAvailable = true;
+                } catch (e) {
+                    // localStorage unavailable (sandboxed iframe, privacy mode, etc.)
+                    this.isLocalStorageAvailable = false;
+                    console.warn('localStorage unavailable, using in-memory storage');
+                }
+            },
+
+            getItem(key) {
+                if (this.isLocalStorageAvailable) {
+                    try {
+                        return localStorage.getItem(key);
+                    } catch (e) {
+                        this.isLocalStorageAvailable = false;
+                    }
+                }
+                return this.storage[key] || null;
+            },
+
+            setItem(key, value) {
+                if (this.isLocalStorageAvailable) {
+                    try {
+                        localStorage.setItem(key, value);
+                        return;
+                    } catch (e) {
+                        this.isLocalStorageAvailable = false;
+                    }
+                }
+                this.storage[key] = value;
+            }
+        };
+
+        // Initialize safe storage on load
+        SafeStorage.init();
+
+        // ============================================================
         // Application State (Consolidated)
         // ============================================================
         const AppState = {
@@ -681,11 +729,11 @@ const htmlTemplate = `<!DOCTYPE html>
                 } else {
                     document.documentElement.classList.remove('dark');
                 }
-                localStorage.setItem('theme', theme);
+                SafeStorage.setItem('theme', theme);
             },
 
             init() {
-                this.theme = localStorage.getItem('theme') || 'light';
+                this.theme = SafeStorage.getItem('theme') || 'light';
                 if (this.theme === 'dark') {
                     document.documentElement.classList.add('dark');
                 }

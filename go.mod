@@ -3,6 +3,7 @@ module github.com/bitrise-io/bitrise-plugins-bundle-inspector
 go 1.24.3
 
 require (
+	github.com/andrianbdn/iospng v0.0.0-20180730113000-dccef1992541
 	github.com/blacktop/lzfse-cgo v1.1.20
 	github.com/csnewman/dextk v0.3.0
 	github.com/shogo82148/androidbinary v1.0.5
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/andrianbdn/iospng v0.0.0-20180730113000-dccef1992541 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
