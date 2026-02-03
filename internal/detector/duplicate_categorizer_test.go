@@ -410,9 +410,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 3 default rules (PR 1: Rules 1-3)
+	// Should have 7 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7)
 	rules := registry.GetRules()
-	require.Equal(t, 3, len(rules), "Should have 3 default rules")
+	require.Equal(t, 7, len(rules), "Should have 7 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -423,4 +423,338 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-1-info-plist"], "Should have Info.plist rule")
 	assert.True(t, ruleIDs["rule-2-nib-variants"], "Should have NIB variants rule")
 	assert.True(t, ruleIDs["rule-3-contents-json"], "Should have Contents.json rule")
+	assert.True(t, ruleIDs["rule-4-localization"], "Should have Localization rule")
+	assert.True(t, ruleIDs["rule-5-framework-scripts"], "Should have Framework scripts rule")
+	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have Framework metadata rule")
+	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
+}
+
+func TestLocalizationRule(t *testing.T) {
+	rule := NewLocalizationRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "Localization files in different .lproj bundles - should filter",
+			files: []string{
+				"Payload/App.app/en.lproj/Localizable.strings",
+				"Payload/App.app/de.lproj/Localizable.strings",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Localization files in different frameworks with same locale - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK.framework/en.lproj/Localizable.strings",
+				"Payload/App.app/Frameworks/OtherSDK.framework/en.lproj/Localizable.strings",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Localization files in framework and app - should filter",
+			files: []string{
+				"Payload/App.app/en.lproj/Localizable.strings",
+				"Payload/App.app/Frameworks/SDK.framework/en.lproj/Localizable.strings",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "stringsdict files in different bundles - should filter",
+			files: []string{
+				"Payload/App.app/en.lproj/Plurals.stringsdict",
+				"Payload/App.app/Frameworks/SDK.framework/en.lproj/Plurals.stringsdict",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Localization files in same directory - actionable",
+			files: []string{
+				"Payload/App.app/en.lproj/Localizable.strings",
+				"Payload/App.app/en.lproj/Localizable.strings.backup",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Not localization files - skip",
+			files: []string{
+				"Payload/App.app/config.json",
+				"Payload/App.app/Frameworks/SDK.framework/config.json",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  2048,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+		})
+	}
+}
+
+func TestFrameworkScriptsRule(t *testing.T) {
+	rule := NewFrameworkScriptsRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "strip-frameworks.sh in different frameworks - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK1.framework/strip-frameworks.sh",
+				"Payload/App.app/Frameworks/SDK2.framework/strip-frameworks.sh",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "copy-frameworks.sh in frameworks - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/A.framework/copy-frameworks.sh",
+				"Payload/App.app/Frameworks/B.framework/copy-frameworks.sh",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "embed-frameworks.sh in different bundles - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK.framework/embed-frameworks.sh",
+				"Payload/App.app/PlugIns/Share.appex/embed-frameworks.sh",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Not a framework script - skip",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK.framework/custom-script.sh",
+				"Payload/App.app/Frameworks/OtherSDK.framework/custom-script.sh",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  4096,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+		})
+	}
+}
+
+func TestFrameworkMetadataRule(t *testing.T) {
+	rule := NewFrameworkMetadataRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: ".supx files in different frameworks - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/Carthage.framework/Carthage.supx",
+				"Payload/App.app/Frameworks/OtherLib.framework/OtherLib.supx",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".bcsymbolmap files - should filter",
+			files: []string{
+				"Payload/App.app/BCSymbolMaps/ABC123.bcsymbolmap",
+				"Payload/App.app/BCSymbolMaps/DEF456.bcsymbolmap",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "module.modulemap in different frameworks - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK1.framework/Modules/module.modulemap",
+				"Payload/App.app/Frameworks/SDK2.framework/Modules/module.modulemap",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".swiftmodule in frameworks - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/A.framework/A.swiftmodule",
+				"Payload/App.app/Frameworks/B.framework/B.swiftmodule",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Not metadata file - skip",
+			files: []string{
+				"Payload/App.app/Frameworks/SDK.framework/config.json",
+				"Payload/App.app/Frameworks/OtherSDK.framework/config.json",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  1024,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+		})
+	}
+}
+
+func TestThirdPartySDKRule(t *testing.T) {
+	rule := NewThirdPartySDKRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "GoogleMaps resources in different locations - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/GoogleMaps.framework/Resources/icon.png",
+				"Payload/App.app/Frameworks/GoogleMaps.framework/Resources/tile.png",
+				"Payload/App.app/Frameworks/GoogleMapsBase.framework/Resources/icon.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Firebase SDK resources - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/FirebaseCore.framework/GoogleService-Info.plist",
+				"Payload/App.app/Frameworks/FirebaseAuth.framework/GoogleService-Info.plist",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Facebook SDK resources - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/FBSDKCoreKit.framework/Assets/icon.png",
+				"Payload/App.app/Frameworks/FBSDKLoginKit.framework/Assets/icon.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Alamofire and AFNetworking (networking SDKs) - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/Alamofire.framework/logo.png",
+				"Payload/App.app/Frameworks/AFNetworking.framework/logo.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "SDWebImage resources - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/SDWebImage.framework/placeholder.png",
+				"Payload/App.app/Frameworks/SDWebImageWebPCoder.framework/placeholder.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Stripe SDK resources - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/Stripe.framework/Assets/card.png",
+				"Payload/App.app/Frameworks/StripeUICore.framework/Assets/card.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Mixed: SDK and app code - should filter (>50% SDK)",
+			files: []string{
+				"Payload/App.app/Frameworks/GoogleMaps.framework/icon.png",
+				"Payload/App.app/Frameworks/Firebase.framework/icon.png",
+				"Payload/App.app/icon.png", // Only 1 app file out of 3
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "App resources only - actionable",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Custom framework (not third-party) - actionable",
+			files: []string{
+				"Payload/App.app/Frameworks/MyAppFramework.framework/icon.png",
+				"Payload/App.app/Frameworks/MyOtherFramework.framework/icon.png",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  8192,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+		})
+	}
+}
+
+func TestThirdPartySDKRule_Integration(t *testing.T) {
+	categorizer := NewDuplicateCategorizer()
+
+	duplicates := []types.DuplicateSet{
+		{
+			Files: []string{
+				"Payload/App.app/Frameworks/GoogleMaps.framework/Resources/marker.png",
+				"Payload/App.app/Frameworks/GoogleMapsBase.framework/Resources/marker.png",
+			},
+			Count: 2,
+			Size:  10240,
+		},
+		{
+			Files: []string{
+				"Payload/App.app/Frameworks/Firebase.framework/Info.plist",
+				"Payload/App.app/Frameworks/FirebaseCore.framework/Info.plist",
+			},
+			Count: 2,
+			Size:  1024,
+		},
+		{
+			Files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			Count: 2,
+			Size:  102400,
+		},
+	}
+
+	actionable, filtered := categorizer.FilterDuplicates(duplicates)
+
+	// Should filter out GoogleMaps and Firebase duplicates (2 sets)
+	assert.Equal(t, 2, len(filtered), "Expected 2 filtered duplicates")
+
+	// Should keep app logo.png (1 set)
+	assert.Equal(t, 1, len(actionable), "Expected 1 actionable duplicate")
+	assert.Contains(t, actionable[0].Files[0], "logo.png", "Expected logo.png to be actionable")
 }

@@ -40,7 +40,16 @@
       "Bash(go run:*)",
       "WebFetch(domain:www.emergetools.com)",
       "WebFetch(domain:echarts.apache.org)",
-      "WebFetch(domain:apache.github.io)"
+      "WebFetch(domain:apache.github.io)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr checkout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)"
     ]
   }
 }

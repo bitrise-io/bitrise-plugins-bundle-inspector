@@ -35,6 +35,12 @@ func NewRuleRegistry() *RuleRegistry {
 	registry.Register(NewNIBVariantsRule())
 	registry.Register(NewContentsJSONRule())
 
+	// Register additional rules (PR 2: Rules 4-7)
+	registry.Register(NewLocalizationRule())
+	registry.Register(NewFrameworkScriptsRule())
+	registry.Register(NewFrameworkMetadataRule())
+	registry.Register(NewThirdPartySDKRule())
+
 	return registry
 }
 
