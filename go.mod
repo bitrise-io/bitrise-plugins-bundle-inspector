@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/andrianbdn/iospng v0.0.0-20180730113000-dccef1992541 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

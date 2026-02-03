@@ -15,6 +15,8 @@ import (
 
 	_ "image/jpeg" // Register JPEG decoder
 	_ "image/png"  // Register PNG decoder
+
+	"github.com/andrianbdn/iospng"
 )
 
 // ExtractIconFromZip extracts the app icon from a ZIP archive (IPA, APK, AAB)
@@ -63,6 +65,14 @@ func ExtractIconFromDirectory(dirPath string) (string, error) {
 	for _, iconName := range iconNames {
 		iconPath := filepath.Join(dirPath, iconName)
 		if data, err := os.ReadFile(iconPath); err == nil {
+			// Check if it's a CgBI PNG and convert if needed
+			if isCgBIPNG(data) {
+				data, err = convertCgBIToStandardPNG(data)
+				if err != nil {
+					continue
+				}
+			}
+
 			// Convert to PNG if needed and encode
 			img, _, err := image.Decode(bytes.NewReader(data))
 			if err != nil {
@@ -195,7 +205,15 @@ func extractAndConvertIcon(file *zip.File) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read icon data: %w", err)
 	}
 
-	// Decode the image
+	// Check if it's a CgBI PNG and convert if needed
+	if isCgBIPNG(data) {
+		data, err = convertCgBIToStandardPNG(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert CgBI PNG: %w", err)
+		}
+	}
+
+	// Decode the image (now standard PNG if it was CgBI)
 	img, format, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
@@ -252,4 +270,45 @@ func getIconPriority(name string) int {
 	}
 
 	return 1
+}
+
+// isCgBIPNG checks if data is a CgBI-optimized PNG file.
+// CgBI is Apple's proprietary PNG format used in iOS apps with optimizations like:
+// - BGR color order (instead of RGB)
+// - Premultiplied alpha channel
+// - Apple-specific compression
+//
+// CgBI PNGs have the standard PNG signature followed by a CgBI chunk before IHDR.
+func isCgBIPNG(data []byte) bool {
+	// Need at least PNG signature (8 bytes) + chunk length (4) + "CgBI" (4)
+	if len(data) < 16 {
+		return false
+	}
+
+	// Check PNG signature: 89 50 4E 47 0D 0A 1A 0A
+	pngSignature := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	if !bytes.Equal(data[0:8], pngSignature) {
+		return false
+	}
+
+	// Check for CgBI chunk in the first 20 bytes after signature
+	// CgBI chunk typically appears at offset 12 (after 8-byte signature + 4-byte chunk length)
+	return bytes.Contains(data[8:20], []byte("CgBI"))
+}
+
+// convertCgBIToStandardPNG converts Apple's CgBI PNG format to standard PNG.
+// Uses the iospng library to handle the conversion, which:
+// 1. Reverts Apple's PNG optimizations (BGR → RGB, un-premultiply alpha)
+// 2. Produces a standard PNG that can be decoded by image.Decode
+func convertCgBIToStandardPNG(data []byte) ([]byte, error) {
+	// Use iospng to revert Apple's PNG optimization
+	reader := bytes.NewReader(data)
+	var buf bytes.Buffer
+
+	err := iospng.PngRevertOptimization(reader, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to revert CgBI PNG optimization: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
