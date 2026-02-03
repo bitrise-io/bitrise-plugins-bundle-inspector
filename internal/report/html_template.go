@@ -1186,10 +1186,16 @@ const htmlTemplate = `<!DOCTYPE html>
             depth = depth || 0;
             const isParent = node.children && node.children.length > 0;
 
+            // Check if this node is part of the DEX virtual directory
+            const isDexNode = node.path === 'Dex' || (node.path && node.path.startsWith('Dex/'));
+
             // Determine the color for this node
             let nodeColor;
 
-            if (isParent) {
+            if (isDexNode) {
+                // DEX virtual directory and all its children get dex color
+                nodeColor = getCSSVariable('--color-dex');
+            } else if (isParent) {
                 // Parent/group node - use Bitrise brand color based on depth
                 const headerLevel = Math.min(depth, 4);
                 nodeColor = getCSSVariable('--color-header-' + headerLevel);
