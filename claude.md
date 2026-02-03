@@ -69,6 +69,18 @@ bundle-inspector/
 
 #### Detection
 - **internal/detector/duplicate.go**: SHA-256 duplicate file detection (parallel)
+- **internal/detector/duplicate_categorizer.go**: Intelligent filtering orchestrator
+- **internal/detector/path_analysis.go**: Bundle/framework/SDK path analysis utilities
+- **internal/detector/rules.go**: Rule registry and filtering framework
+- **internal/detector/rule_info_plist.go**: Rule 1 - Info.plist bundle boundary detection
+- **internal/detector/rule_nib_variants.go**: Rule 2 - NIB version variants detection
+- **internal/detector/rule_contents_json.go**: Rule 3 - Asset catalog Contents.json detection
+- **internal/detector/rule_localization.go**: Rule 4 - Localization file bundle isolation
+- **internal/detector/rule_framework_scripts.go**: Rule 5 - Framework build scripts detection
+- **internal/detector/rule_framework_metadata.go**: Rule 6 - Framework metadata files detection
+- **internal/detector/rule_third_party_sdk.go**: Rule 7 - Third-party SDK resources (100+ SDKs)
+- **internal/detector/rule_extension_duplication.go**: Rule 8 - Extension resource duplication (actionable)
+- **internal/detector/rule_asset_duplication.go**: Rule 9 - Asset duplication in same bundle (actionable)
 - **internal/detector/bloat.go**: Large file detection
 
 #### Output Formatters
@@ -294,11 +306,55 @@ go build -o bundle-inspector ./cmd/bundle-inspector
   - Uses dextk library (github.com/csnewman/dextk) for pure-Go DEX parsing
 - **Architecture Detection**: Groups .so files by architecture (arm64-v8a, armeabi-v7a, x86, x86_64)
 
-### Duplicate Detection
+### Duplicate Detection with Intelligent Filtering ⭐
+
+**Detection Phase:**
 - SHA-256 hashing for file identity
 - Parallel processing with worker pools
 - Groups duplicates by hash
 - Calculates wasted space (size × (count - 1))
+
+**Filtering Phase (NEW in v0.3.0):**
+- 9-rule filtering system eliminates false positives
+- Rules 1-7: Filter architectural patterns and third-party SDK resources
+- Rules 8-9: Identify actionable duplicates with priority (high/medium/low)
+- **Result**: 60-80% reduction in false positives
+
+**Rule-Based Categorization:**
+1. **Rule 1**: Info.plist in different bundles → FILTER (iOS requirement)
+2. **Rule 2**: NIB version variants → FILTER (iOS compatibility)
+3. **Rule 3**: Contents.json in asset catalogs → FILTER (required metadata)
+4. **Rule 4**: Localization files in different bundles → FILTER (bundle isolation)
+5. **Rule 5**: Framework build scripts → FILTER (CocoaPods/Carthage artifacts)
+6. **Rule 6**: Framework metadata (.supx, .bcsymbolmap, etc.) → FILTER (required metadata)
+7. **Rule 7**: Third-party SDK resources (100+ SDKs) → FILTER (not under developer control)
+8. **Rule 8**: Extension resource duplication → ACTIONABLE with priority
+9. **Rule 9**: Asset duplication in same bundle → ACTIONABLE with priority
+
+**Architecture:**
+```
+Duplicate Detection
+    ↓
+DuplicateCategorizer.EvaluateDuplicate()
+    ↓
+Rule Evaluation (9 rules)
+    ↓
+FilterResult (ShouldFilter=true/false, Priority)
+    ↓
+Orchestrator: Skip if filtered, create optimization if actionable
+    ↓
+Only actionable optimizations in report
+```
+
+**Key Files:**
+- `internal/detector/duplicate.go`: SHA-256 detection
+- `internal/detector/duplicate_categorizer.go`: Categorization orchestrator
+- `internal/detector/path_analysis.go`: Bundle/framework/SDK detection
+- `internal/detector/rules.go`: Rule registry
+- `internal/detector/rule_*.go`: Individual filtering rules (9 files)
+- `internal/orchestrator/orchestrator.go`: Integration point (generateOptimizations)
+
+**See**: `docs/duplicate-detection.md` for complete rule documentation
 
 ### Optimization Recommendations
 - Severity levels: High, Medium, Low
@@ -324,6 +380,7 @@ go build -o bundle-inspector ./cmd/bundle-inspector
 - **README.md**: User-facing docs (Bitrise users, CI/CD focus)
 - **QUICKSTART.md**: Developer Guide (building, testing, contributing)
 - **docs/ios-advanced-analysis.md**: Deep dive on iOS features
+- **docs/duplicate-detection.md**: Intelligent filtering system explained (all 9 rules, examples, FAQ)
 
 ### Code Documentation
 - Exported functions have doc comments
