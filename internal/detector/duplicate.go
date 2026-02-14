@@ -104,6 +104,16 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 		duplicates = append(duplicates, dup)
 	}
 
+	// Phase 4: Convert absolute paths to relative (for clean JSON output)
+	for i := range duplicates {
+		for j := range duplicates[i].Files {
+			rel, err := filepath.Rel(rootPath, duplicates[i].Files[j])
+			if err == nil {
+				duplicates[i].Files[j] = filepath.ToSlash(rel)
+			}
+		}
+	}
+
 	return duplicates, nil
 }
 
