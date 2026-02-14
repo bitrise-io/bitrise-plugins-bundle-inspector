@@ -42,14 +42,16 @@ type SizeBreakdown struct {
 
 // FileNode represents a file or directory in the artifact tree.
 type FileNode struct {
-	Path       string                 `json:"path"`
-	Name       string                 `json:"name"`
-	Size       int64                  `json:"size"`
-	IsDir      bool                   `json:"is_dir"`
-	Children   []*FileNode            `json:"children,omitempty"`
-	IsVirtual  bool                   `json:"is_virtual,omitempty"`  // True for assets expanded from .car files or DEX classes
-	SourceFile string                 `json:"source_file,omitempty"` // Parent .car file path or DEX file for virtual nodes
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`    // Additional metadata (e.g., for DEX classes)
+	Path        string                 `json:"path"`
+	Name        string                 `json:"name"`
+	Size        int64                  `json:"size"`
+	IsDir       bool                   `json:"is_dir"`
+	Children    []*FileNode            `json:"children,omitempty"`
+	IsVirtual   bool                   `json:"is_virtual,omitempty"`  // True for assets expanded from .car files or DEX classes
+	SourceFile  string                 `json:"source_file,omitempty"` // Parent .car file path or DEX file for virtual nodes
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`    // Additional metadata (e.g., for DEX classes)
+	Hash        string                 `json:"hash,omitempty"`         // SHA-256 hash (set for files that appear in duplicate sets)
+	IsDuplicate bool                   `json:"is_duplicate,omitempty"` // True if file appears in a duplicate set
 }
 
 // DuplicateSet represents a group of duplicate files.

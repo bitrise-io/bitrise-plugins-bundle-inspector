@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
@@ -91,6 +93,14 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 		report.Duplicates = append(report.Duplicates, assetDuplicates...)
 	}
 
+	// Filter duplicates to only actionable ones
+	categorizer := detector.NewDuplicateCategorizer()
+	actionable, _ := categorizer.FilterDuplicates(report.Duplicates)
+	report.Duplicates = actionable
+
+	// Annotate FileNode tree with duplicate hash info
+	o.annotateFileTreeDuplicates(report, extractPath)
+
 	// Run additional detectors
 	o.runAdditionalDetectors(report, extractPath)
 
@@ -146,30 +156,21 @@ func (o *Orchestrator) isIOSArtifact(artifactType types.ArtifactType) bool {
 		artifactType == types.ArtifactTypeXCArchive
 }
 
-// generateOptimizations creates optimization recommendations from analysis results
+// generateOptimizations creates optimization recommendations from analysis results.
+// report.Duplicates is already filtered to actionable only by runDetectors.
 func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optimization {
 	// Start with existing optimizations (from analyzers like strip-symbols, etc.)
 	optimizations := report.Optimizations
 
-	// Create duplicate categorizer for intelligent filtering
+	// Create duplicate categorizer to get priority info for each actionable duplicate
 	categorizer := detector.NewDuplicateCategorizer()
 
-	// Add duplicate file optimizations (with intelligent filtering)
+	// Add duplicate file optimizations (already filtered to actionable only)
 	for _, dup := range report.Duplicates {
-		// Evaluate duplicate with categorization rules
 		filterResult := categorizer.EvaluateDuplicate(dup)
 
-		// Skip if should be filtered out (architectural pattern or third-party SDK)
-		if filterResult.ShouldFilter {
-			// Optional: Log filtered duplicates for debugging
-			// o.Logger.Debug("Filtered duplicate: %s (reason: %s)", dup.Files[0], filterResult.Reason)
-			continue
-		}
-
-		// This is an actionable duplicate - create optimization
 		severity := filterResult.Priority
 		if severity == "" {
-			// No priority specified by rule, calculate based on size
 			severity = getSeverity(dup.WastedSize, report.ArtifactInfo.Size)
 		}
 
@@ -185,6 +186,71 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 	}
 
 	return optimizations
+}
+
+// annotateFileTreeDuplicates sets Hash and IsDuplicate on FileNode entries
+// that appear in actionable duplicate sets.
+func (o *Orchestrator) annotateFileTreeDuplicates(report *types.Report, extractPath string) {
+	if len(report.Duplicates) == 0 {
+		return
+	}
+
+	// Determine the prefix to strip from duplicate paths to match FileNode paths.
+	// For IPA: duplicate paths are "Payload/App.app/Frameworks/..." but FileNode
+	// paths are "Frameworks/..." (relative to .app root).
+	prefix := o.computeDuplicatePathPrefix(report.ArtifactInfo.Type, extractPath)
+
+	// Build lookup map: FileNode-compatible path -> hash
+	hashMap := make(map[string]string)
+	for _, dup := range report.Duplicates {
+		for _, file := range dup.Files {
+			nodeKey := file
+			if prefix != "" && strings.HasPrefix(file, prefix) {
+				nodeKey = file[len(prefix):]
+			}
+			hashMap[nodeKey] = dup.Hash
+		}
+	}
+
+	// Walk FileNode tree and annotate matching leaf nodes
+	var annotate func(nodes []*types.FileNode)
+	annotate = func(nodes []*types.FileNode) {
+		for _, node := range nodes {
+			if node.IsDir {
+				annotate(node.Children)
+				continue
+			}
+			if hash, ok := hashMap[node.Path]; ok {
+				node.Hash = hash
+				node.IsDuplicate = true
+			}
+		}
+	}
+	annotate(report.FileTree)
+}
+
+// computeDuplicatePathPrefix determines the path prefix to strip from duplicate
+// paths so they match FileNode paths. For IPA artifacts, FileNode paths are
+// relative to the .app bundle root, but duplicate paths are relative to the
+// extraction root (e.g., "Payload/AppName.app/").
+func (o *Orchestrator) computeDuplicatePathPrefix(artifactType types.ArtifactType, extractPath string) string {
+	if artifactType != types.ArtifactTypeIPA {
+		return "" // APK, AAB, .app: paths already match
+	}
+
+	payloadDir := filepath.Join(extractPath, "Payload")
+	entries, err := os.ReadDir(payloadDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), ".app") {
+			return "Payload/" + entry.Name() + "/"
+		}
+	}
+
+	return ""
 }
 
 // getSeverity determines severity based on impact relative to total size

@@ -59,6 +59,71 @@ func TestDuplicateDetector(t *testing.T) {
 		if dup.WastedSize != expectedWasted {
 			t.Errorf("Expected wasted size %d, got %d", expectedWasted, dup.WastedSize)
 		}
+		// Verify paths are relative (not absolute)
+		for _, file := range dup.Files {
+			if filepath.IsAbs(file) {
+				t.Errorf("Expected relative path, got absolute: %s", file)
+			}
+		}
+	}
+}
+
+func TestDuplicateDetector_RelativePaths(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "duplicate-relpath-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create nested directory structure
+	subDir := filepath.Join(tempDir, "sub", "dir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirs: %v", err)
+	}
+
+	content := []byte("duplicate content here")
+	files := []string{
+		filepath.Join(tempDir, "root.txt"),
+		filepath.Join(subDir, "nested.txt"),
+	}
+
+	for _, f := range files {
+		if err := os.WriteFile(f, content, 0644); err != nil {
+			t.Fatalf("Failed to write %s: %v", f, err)
+		}
+	}
+
+	detector := NewDuplicateDetector()
+	duplicates, err := detector.DetectDuplicates(tempDir)
+	if err != nil {
+		t.Fatalf("DetectDuplicates failed: %v", err)
+	}
+
+	if len(duplicates) != 1 {
+		t.Fatalf("Expected 1 duplicate set, got %d", len(duplicates))
+	}
+
+	dup := duplicates[0]
+	expectedPaths := map[string]bool{
+		"root.txt":         false,
+		"sub/dir/nested.txt": false,
+	}
+
+	for _, file := range dup.Files {
+		if filepath.IsAbs(file) {
+			t.Errorf("Expected relative path, got absolute: %s", file)
+		}
+		if _, ok := expectedPaths[file]; ok {
+			expectedPaths[file] = true
+		} else {
+			t.Errorf("Unexpected path: %s", file)
+		}
+	}
+
+	for path, found := range expectedPaths {
+		if !found {
+			t.Errorf("Expected path not found in duplicates: %s", path)
+		}
 	}
 }
 

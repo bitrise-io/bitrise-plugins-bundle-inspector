@@ -210,30 +210,19 @@ func (f *HTMLFormatter) prepareJSData(report *types.Report) jsData {
 		FileTree:      f.prepareTreemapData(report.FileTree),
 		Categories:    f.prepareCategoryData(&report.SizeBreakdown),
 		Extensions:    f.prepareExtensionData(&report.SizeBreakdown),
-		Optimizations: f.prepareOptimizationData(report.Optimizations, report.ArtifactInfo.Path),
-		Duplicates:    f.extractDuplicatePaths(report.Duplicates, report.ArtifactInfo.Path),
+		Optimizations: f.prepareOptimizationData(report.Optimizations),
+		Duplicates:    f.extractDuplicatePaths(report.Duplicates),
 		Metadata:      report.Metadata,
 	}
 }
 
-// extractDuplicatePaths collects all file paths that are duplicates
-// It strips the artifact path prefix to match the file tree paths
-func (f *HTMLFormatter) extractDuplicatePaths(duplicates []types.DuplicateSet, artifactPath string) []string {
-	// Normalize artifact path for prefix stripping
-	prefix := artifactPath
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-
+// extractDuplicatePaths collects all file paths that are duplicates.
+// Paths in DuplicateSet.Files are already relative.
+func (f *HTMLFormatter) extractDuplicatePaths(duplicates []types.DuplicateSet) []string {
 	pathSet := make(map[string]struct{})
 	for _, dup := range duplicates {
 		for _, file := range dup.Files {
-			// Strip artifact path prefix if present
-			relativePath := file
-			if strings.HasPrefix(file, prefix) {
-				relativePath = file[len(prefix):]
-			}
-			pathSet[relativePath] = struct{}{}
+			pathSet[file] = struct{}{}
 		}
 	}
 
@@ -480,33 +469,18 @@ func (f *HTMLFormatter) prepareExtensionData(breakdown *types.SizeBreakdown) []e
 	return result
 }
 
-// prepareOptimizationData converts optimizations to JavaScript format
-func (f *HTMLFormatter) prepareOptimizationData(optimizations []types.Optimization, artifactPath string) []optimizationData {
-	// Normalize artifact path for prefix stripping
-	prefix := artifactPath
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-
+// prepareOptimizationData converts optimizations to JavaScript format.
+// Optimization file paths are already relative.
+func (f *HTMLFormatter) prepareOptimizationData(optimizations []types.Optimization) []optimizationData {
 	result := make([]optimizationData, len(optimizations))
 	for i, opt := range optimizations {
-		// Strip artifact path prefix from all file paths
-		relativePaths := make([]string, len(opt.Files))
-		for j, file := range opt.Files {
-			relativePath := file
-			if strings.HasPrefix(file, prefix) {
-				relativePath = file[len(prefix):]
-			}
-			relativePaths[j] = relativePath
-		}
-
 		result[i] = optimizationData{
 			Category:    opt.Category,
 			Severity:    opt.Severity,
 			Title:       opt.Title,
 			Description: opt.Description,
 			Impact:      opt.Impact,
-			Files:       relativePaths,
+			Files:       opt.Files,
 			Action:      opt.Action,
 		}
 	}
