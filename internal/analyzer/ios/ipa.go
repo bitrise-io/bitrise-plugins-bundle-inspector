@@ -204,7 +204,9 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		iconHints = &util.IconSearchHints{PlistIconNames: analysis.appMetadata.IconNames}
 	}
 	iconData, err := util.ExtractIconFromZipWithHints(path, "ipa", iconHints)
-	if err != nil || iconData == "" {
+	if err == nil && iconData != "" {
+		a.Logger.Info("Icon extracted from loose file in archive")
+	} else {
 		// Fallback: try extracting icon from Assets.car
 		carPath := filepath.Join(appBundlePath, "Assets.car")
 		if _, statErr := os.Stat(carPath); statErr == nil {
@@ -219,11 +221,8 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 			if carIcon, carErr := assets.ExtractIconFromCar(carPath, iconNames, catalogAssets); carErr == nil {
 				encoded := base64.StdEncoding.EncodeToString(carIcon)
 				iconData = fmt.Sprintf("data:image/png;base64,%s", encoded)
-				err = nil
+				a.Logger.Info("Icon extracted from Assets.car")
 			}
-		}
-		if err != nil {
-			a.Logger.Warn("Failed to extract icon: %v", err)
 		}
 		// Continue without icon - it's not critical
 	}
