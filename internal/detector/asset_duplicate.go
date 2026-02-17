@@ -65,6 +65,12 @@ func (d *AssetDuplicateDetector) DetectAssetDuplicates(catalogs []*assets.AssetC
 			continue
 		}
 
+		// Skip device variant groups: same asset name in same .car file with different idioms
+		// (e.g., Icon~phone.png and Icon~pad.png are runtime-selected, not true duplicates)
+		if isDeviceVariantGroup(assetGroup) {
+			continue
+		}
+
 		paths := make([]string, len(assetGroup))
 		for i, a := range assetGroup {
 			paths[i] = a.VirtualPath
@@ -86,6 +92,41 @@ func (d *AssetDuplicateDetector) DetectAssetDuplicates(catalogs []*assets.AssetC
 	})
 
 	return duplicates
+}
+
+// isDeviceVariantGroup checks if all assets in a hash group are device variants of the same asset.
+// Device variants share the same Name and .car file but have different Idiom values
+// (e.g., "iphone"/"ipad", "phone"/"pad"). These are intentionally created by Xcode's
+// asset catalog compiler and selected at runtime based on device type.
+func isDeviceVariantGroup(group []assetWithPath) bool {
+	if len(group) < 2 {
+		return false
+	}
+
+	firstName := group[0].Asset.Name
+	firstCar := filepath.Dir(group[0].VirtualPath)
+
+	// All assets must have the same name and be in the same .car file
+	for _, a := range group[1:] {
+		if a.Asset.Name != firstName {
+			return false
+		}
+		if filepath.Dir(a.VirtualPath) != firstCar {
+			return false
+		}
+	}
+
+	// At least two different idioms must be present (otherwise it's a true duplicate)
+	idioms := make(map[string]bool)
+	for _, a := range group {
+		idiom := a.Asset.Idiom
+		if idiom == "" {
+			idiom = "universal"
+		}
+		idioms[idiom] = true
+	}
+
+	return len(idioms) >= 2
 }
 
 // buildFullVirtualPath creates the full virtual path for an asset.

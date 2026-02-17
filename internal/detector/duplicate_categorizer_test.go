@@ -411,9 +411,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 10 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
+	// Should have 11 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
 	rules := registry.GetRules()
-	require.Equal(t, 10, len(rules), "Should have 10 default rules")
+	require.Equal(t, 11, len(rules), "Should have 11 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -429,6 +429,7 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have Framework metadata rule")
 	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
 	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have Small duplicates rule")
+	assert.True(t, ruleIDs["rule-11-device-variant"], "Should have Device variant rule")
 	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have Extension duplication rule")
 	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
 }
@@ -982,6 +983,97 @@ func TestAssetDuplicationRule(t *testing.T) {
 			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
 			if tt.wantPriority != "" {
 				assert.Equal(t, tt.wantPriority, result.Priority, "Priority mismatch")
+			}
+		})
+	}
+}
+
+func TestDeviceVariantRule(t *testing.T) {
+	rule := NewDeviceVariantRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "Phone and pad variants in same .car - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+				"Payload/App.app/Assets.car/Icon~pad@2x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "iPhone and iPad variants in same .car - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/AppLogo~iphone@3x.png",
+				"Payload/App.app/Assets.car/AppLogo~ipad@3x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Multiple device variants - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Splash~phone@2x.png",
+				"Payload/App.app/Assets.car/Splash~pad@2x.png",
+				"Payload/App.app/Assets.car/Splash~phone@3x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Different .car files - should NOT filter (true duplicate across catalogs)",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+				"Payload/App.app/Frameworks/SDK.framework/Assets.car/Icon~phone@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Different base names - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/IconA~phone@2x.png",
+				"Payload/App.app/Assets.car/IconB~pad@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "No idiom suffix - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon@2x.png",
+				"Payload/App.app/Assets.car/Icon@3x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Not in .car directory - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/icon~phone.png",
+				"Payload/App.app/Resources/icon~pad.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  10240,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
 			}
 		})
 	}
