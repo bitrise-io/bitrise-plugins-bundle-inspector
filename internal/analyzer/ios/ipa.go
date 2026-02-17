@@ -3,6 +3,7 @@ package ios
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -203,8 +204,27 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		iconHints = &util.IconSearchHints{PlistIconNames: analysis.appMetadata.IconNames}
 	}
 	iconData, err := util.ExtractIconFromZipWithHints(path, "ipa", iconHints)
-	if err != nil {
-		a.Logger.Warn("Failed to extract icon: %v", err)
+	if err != nil || iconData == "" {
+		// Fallback: try extracting icon from Assets.car
+		carPath := filepath.Join(appBundlePath, "Assets.car")
+		if _, statErr := os.Stat(carPath); statErr == nil {
+			iconNames := []string{"AppIcon"}
+			if analysis.appMetadata != nil && len(analysis.appMetadata.IconNames) > 0 {
+				iconNames = analysis.appMetadata.IconNames
+			}
+			var catalogAssets []assets.AssetInfo
+			for _, cat := range analysis.assetCatalogs {
+				catalogAssets = append(catalogAssets, cat.Assets...)
+			}
+			if carIcon, carErr := assets.ExtractIconFromCar(carPath, iconNames, catalogAssets); carErr == nil {
+				encoded := base64.StdEncoding.EncodeToString(carIcon)
+				iconData = fmt.Sprintf("data:image/png;base64,%s", encoded)
+				err = nil
+			}
+		}
+		if err != nil {
+			a.Logger.Warn("Failed to extract icon: %v", err)
+		}
 		// Continue without icon - it's not critical
 	}
 

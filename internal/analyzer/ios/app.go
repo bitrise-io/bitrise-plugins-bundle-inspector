@@ -2,10 +2,13 @@ package ios
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
@@ -134,8 +137,27 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		iconHints = &util.IconSearchHints{PlistIconNames: appMetadata.IconNames}
 	}
 	iconData, err := util.ExtractIconFromDirectoryWithHints(path, iconHints)
-	if err != nil {
-		a.Logger.Warn("Failed to extract icon: %v", err)
+	if err != nil || iconData == "" {
+		// Fallback: try extracting icon from Assets.car
+		carPath := filepath.Join(path, "Assets.car")
+		if _, statErr := os.Stat(carPath); statErr == nil {
+			iconNames := []string{"AppIcon"}
+			if appMetadata != nil && len(appMetadata.IconNames) > 0 {
+				iconNames = appMetadata.IconNames
+			}
+			var catalogAssets []assets.AssetInfo
+			for _, cat := range assetCatalogs {
+				catalogAssets = append(catalogAssets, cat.Assets...)
+			}
+			if carIcon, carErr := assets.ExtractIconFromCar(carPath, iconNames, catalogAssets); carErr == nil {
+				encoded := base64.StdEncoding.EncodeToString(carIcon)
+				iconData = fmt.Sprintf("data:image/png;base64,%s", encoded)
+				err = nil
+			}
+		}
+		if err != nil {
+			a.Logger.Warn("Failed to extract icon: %v", err)
+		}
 		// Continue without icon - it's not critical
 	}
 
