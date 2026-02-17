@@ -76,12 +76,14 @@ func ExtractIconFromDirectoryWithHints(dirPath string, hints *IconSearchHints) (
 	}
 
 	var candidates []candidate
+	seen := make(map[string]struct{})
 
 	// Strategy 1: Info.plist-guided search (highest priority)
 	if hints != nil {
 		for _, baseName := range hints.PlistIconNames {
 			matches, _ := filepath.Glob(filepath.Join(dirPath, baseName+"*.png"))
 			for _, m := range matches {
+				seen[m] = struct{}{}
 				candidates = append(candidates, candidate{
 					path:     m,
 					priority: getIconPriority(filepath.Base(m)) + 50,
@@ -90,9 +92,13 @@ func ExtractIconFromDirectoryWithHints(dirPath string, hints *IconSearchHints) (
 		}
 	}
 
-	// Strategy 2: AppIcon prefix (current behavior)
+	// Strategy 2: AppIcon prefix (skip files already found by Strategy 1)
 	matches, _ := filepath.Glob(filepath.Join(dirPath, "AppIcon*.png"))
 	for _, m := range matches {
+		if _, exists := seen[m]; exists {
+			continue
+		}
+		seen[m] = struct{}{}
 		candidates = append(candidates, candidate{
 			path:     m,
 			priority: getIconPriority(filepath.Base(m)),

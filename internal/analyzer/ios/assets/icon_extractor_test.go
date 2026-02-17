@@ -1,9 +1,10 @@
+//go:build darwin
+
 package assets
 
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,19 +12,11 @@ import (
 )
 
 func TestExtractIconFromCar_InvalidPath(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Assets.car icon extraction requires macOS")
-	}
-
 	_, err := ExtractIconFromCar("/nonexistent/Assets.car", []string{"AppIcon"}, nil)
 	assert.Error(t, err)
 }
 
 func TestExtractIconFromCar_EmptyCandidates(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Assets.car icon extraction requires macOS")
-	}
-
 	// Create a temp file that's not a real .car
 	tmpFile, err := os.CreateTemp("", "fake-*.car")
 	require.NoError(t, err)
@@ -38,10 +31,6 @@ func TestExtractIconFromCar_EmptyCandidates(t *testing.T) {
 }
 
 func TestExtractIconFromCar_WithCatalogAssets(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Assets.car icon extraction requires macOS")
-	}
-
 	// Test that catalog assets with type "icon" are used as candidates
 	catalogAssets := []AssetInfo{
 		{Name: "CustomIcon", Type: "icon"},
@@ -63,10 +52,6 @@ func TestExtractIconFromCar_WithCatalogAssets(t *testing.T) {
 }
 
 func TestExtractIconFromCar_Wikipedia(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Assets.car icon extraction requires macOS")
-	}
-
 	carPath := filepath.Join("..", "..", "..", "..", "test-artifacts", "ios", "Wikipedia.app", "Assets.car")
 	if _, err := os.Stat(carPath); os.IsNotExist(err) {
 		t.Skip("Wikipedia Assets.car test artifact not found")

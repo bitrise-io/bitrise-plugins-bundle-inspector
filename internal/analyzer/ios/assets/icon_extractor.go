@@ -65,10 +65,10 @@ exit(1)
 `
 
 // swiftTimeout is the maximum time allowed for the Swift helper to compile and run.
-const swiftTimeout = 30 * time.Second
+const swiftTimeout = 60 * time.Second
 
 // pngSignature is the magic bytes at the start of every valid PNG file.
-var pngSignature = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+var pngSignature = [8]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 
 // ExtractIconFromCar extracts an icon PNG from an Assets.car file.
 // It tries each candidate name in order: plist icon names, icon-type assets from
@@ -171,7 +171,7 @@ func extractIconWithSwift(carPath string, iconNames []string) ([]byte, error) {
 	data := stdout.Bytes()
 
 	// Validate PNG output
-	if len(data) < len(pngSignature) || !bytes.Equal(data[:len(pngSignature)], pngSignature) {
+	if len(data) < len(pngSignature) || !bytes.Equal(data[:len(pngSignature)], pngSignature[:]) {
 		return nil, fmt.Errorf("swift output is not a valid PNG (%d bytes)", len(data))
 	}
 

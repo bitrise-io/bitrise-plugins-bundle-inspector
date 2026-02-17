@@ -668,8 +668,8 @@ func tryExtractIconFromAssetsCar(appBundlePath string, appMetadata *AppMetadata,
 		return ""
 	}
 
-	iconNames := []string{"AppIcon"}
-	if appMetadata != nil && len(appMetadata.IconNames) > 0 {
+	var iconNames []string
+	if appMetadata != nil {
 		iconNames = appMetadata.IconNames
 	}
 
