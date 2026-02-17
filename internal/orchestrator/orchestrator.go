@@ -174,6 +174,11 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 			severity = getSeverity(dup.WastedSize, report.ArtifactInfo.Size)
 		}
 
+		action := "Keep only one copy and deduplicate references"
+		if filterResult.RuleID == "rule-8-extension-duplication" {
+			action = "Consider using App Groups for shared data or an embedded framework to reduce duplication across extensions"
+		}
+
 		optimizations = append(optimizations, types.Optimization{
 			Category:    "duplicates",
 			Severity:    severity,
@@ -181,7 +186,7 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 			Description: fmt.Sprintf("Found %d identical files (%s each)", dup.Count, util.FormatBytes(dup.Size)),
 			Impact:      dup.WastedSize,
 			Files:       dup.Files,
-			Action:      "Keep only one copy and deduplicate references",
+			Action:      action,
 		})
 	}
 
