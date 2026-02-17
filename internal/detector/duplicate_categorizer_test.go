@@ -344,6 +344,7 @@ func TestRuleRegistry_Evaluate(t *testing.T) {
 					"Payload/App.app/Resources/data.txt",
 				},
 				Count: 2,
+				Size:  10240, // Above block size threshold
 			},
 			wantShouldFilter: false,
 			wantRuleID:       "default",
@@ -410,9 +411,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 9 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, PR 3: Rules 8-9)
+	// Should have 12 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
 	rules := registry.GetRules()
-	require.Equal(t, 9, len(rules), "Should have 9 default rules")
+	require.Equal(t, 12, len(rules), "Should have 12 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -427,8 +428,24 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-5-framework-scripts"], "Should have Framework scripts rule")
 	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have Framework metadata rule")
 	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
+	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have Small duplicates rule")
+	assert.True(t, ruleIDs["rule-11-device-variant"], "Should have Device variant rule")
+	assert.True(t, ruleIDs["rule-12-font-extension"], "Should have Font extension rule")
 	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have Extension duplication rule")
 	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
+}
+
+func TestNewRuleRegistryWithConfig_NoSmallDuplicates(t *testing.T) {
+	config := RuleConfig{FilterSmallDuplicates: false}
+	registry := NewRuleRegistryWithConfig(config)
+
+	rules := registry.GetRules()
+	require.Equal(t, 11, len(rules), "Should have 11 rules when SmallDuplicates is disabled")
+
+	// Verify small duplicates rule is NOT registered
+	for _, rule := range rules {
+		assert.NotEqual(t, "rule-10-small-duplicates", rule.ID(), "SmallDuplicatesRule should not be registered")
+	}
 }
 
 func TestLocalizationRule(t *testing.T) {
@@ -487,6 +504,55 @@ func TestLocalizationRule(t *testing.T) {
 			},
 			wantShouldFilter: false,
 		},
+		{
+			name: "Spanish locale variants - should filter",
+			files: []string{
+				"Payload/App.app/Resources/es_419/messages.offline_catalog",
+				"Payload/App.app/Resources/es_AR/messages.offline_catalog",
+				"Payload/App.app/Resources/es_MX/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Hebrew legacy code alias - should filter",
+			files: []string{
+				"Payload/App.app/Resources/he_ALL/messages.offline_catalog",
+				"Payload/App.app/Resources/iw_ALL/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Chinese locale variants - should filter",
+			files: []string{
+				"Payload/App.app/Resources/zh-CN_ALL/messages.offline_catalog",
+				"Payload/App.app/Resources/zh_ALL/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Locale variant with non-localization file type - should filter",
+			files: []string{
+				"Payload/App.app/Resources/en_US/data.bin",
+				"Payload/App.app/Resources/fr_FR/data.bin",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Different files in same locale dir - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/es_419/messages.offline_catalog",
+				"Payload/App.app/Resources/es_419/other.catalog",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Files without locale directories - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/data.bin",
+				"Payload/App.app/Other/data.bin",
+			},
+			wantShouldFilter: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -494,7 +560,7 @@ func TestLocalizationRule(t *testing.T) {
 			dup := types.DuplicateSet{
 				Files: tt.files,
 				Count: len(tt.files),
-				Size:  2048,
+				Size:  86000,
 			}
 
 			result := rule.Evaluate(dup)
@@ -596,6 +662,42 @@ func TestFrameworkMetadataRule(t *testing.T) {
 			files: []string{
 				"Payload/App.app/Frameworks/A.framework/A.swiftmodule",
 				"Payload/App.app/Frameworks/B.framework/B.swiftmodule",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "PkgInfo in app and frameworks and extensions - should filter",
+			files: []string{
+				"Payload/App.app/PkgInfo",
+				"Payload/App.app/Frameworks/SDK.framework/PkgInfo",
+				"Payload/App.app/PlugIns/Widget.appex/PkgInfo",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "PkgInfo in app and multiple extensions - should filter",
+			files: []string{
+				"Payload/App.app/PkgInfo",
+				"Payload/App.app/PlugIns/Share.appex/PkgInfo",
+				"Payload/App.app/PlugIns/Widget.appex/PkgInfo",
+				"Payload/App.app/PlugIns/WatchWidget.appex/PkgInfo",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".supx in app root and framework - should filter (relaxed)",
+			files: []string{
+				"Payload/App.app/SC_Info/App.supx",
+				"Payload/App.app/Frameworks/Shared.framework/SC_Info/Shared.supx",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".supx in app, framework, and extension - should filter",
+			files: []string{
+				"Payload/App.app/SC_Info/App.supx",
+				"Payload/App.app/Frameworks/Shared.framework/SC_Info/Shared.supx",
+				"Payload/App.app/PlugIns/Widget.appex/SC_Info/Widget.supx",
 			},
 			wantShouldFilter: true,
 		},
@@ -947,6 +1049,324 @@ func TestAssetDuplicationRule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFontExtensionRule(t *testing.T) {
+	rule := NewFontExtensionRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "Font in framework and extension - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/FBSharedFramework.framework/InstagramSans-Regular.otf",
+				"Payload/App.app/PlugIns/WidgetExtension.appex/InstagramSans-Regular.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Font in app and multiple extensions - should filter",
+			files: []string{
+				"Payload/App.app/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/Widget.appex/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/IntentExtension.appex/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/RideExtension.appex/UberMove-Regular.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "TTF font in app and extension - should filter",
+			files: []string{
+				"Payload/App.app/GoogleSans-Regular.ttf",
+				"Payload/App.app/PlugIns/NotificationService.appex/GoogleSans-Regular.ttf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Fonts across multiple extensions only - should filter",
+			files: []string{
+				"Payload/App.app/PlugIns/Share.appex/Font.otf",
+				"Payload/App.app/PlugIns/Widget.appex/Font.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Font duplicated within same app (no extension) - should NOT filter",
+			files: []string{
+				"Payload/App.app/Fonts/MyFont.otf",
+				"Payload/App.app/Resources/MyFont.otf",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Non-font file in extension - should NOT filter",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/PlugIns/Widget.appex/logo.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Mixed font and non-font files - should NOT filter",
+			files: []string{
+				"Payload/App.app/MyFont.otf",
+				"Payload/App.app/PlugIns/Widget.appex/config.json",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/PlugIns/Widget.appex/Font.otf",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  77000,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
+			}
+		})
+	}
+}
+
+func TestDeviceVariantRule(t *testing.T) {
+	rule := NewDeviceVariantRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "Phone and pad variants in same .car - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+				"Payload/App.app/Assets.car/Icon~pad@2x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "iPhone and iPad variants in same .car - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/AppLogo~iphone@3x.png",
+				"Payload/App.app/Assets.car/AppLogo~ipad@3x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Multiple device variants - should filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Splash~phone@2x.png",
+				"Payload/App.app/Assets.car/Splash~pad@2x.png",
+				"Payload/App.app/Assets.car/Splash~phone@3x.png",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Different .car files - should NOT filter (true duplicate across catalogs)",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+				"Payload/App.app/Frameworks/SDK.framework/Assets.car/Icon~phone@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Different base names - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/IconA~phone@2x.png",
+				"Payload/App.app/Assets.car/IconB~pad@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "No idiom suffix - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon@2x.png",
+				"Payload/App.app/Assets.car/Icon@3x.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Not in .car directory - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/icon~phone.png",
+				"Payload/App.app/Resources/icon~pad.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/Assets.car/Icon~phone@2x.png",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  10240,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
+			}
+		})
+	}
+}
+
+func TestSmallDuplicatesRule(t *testing.T) {
+	rule := NewSmallDuplicatesRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		size             int64
+		wantShouldFilter bool
+	}{
+		{
+			name: "Files at block size (4096) - should filter",
+			files: []string{
+				"Payload/App.app/en.lproj/AppAccessibility.strings",
+				"Payload/App.app/de.lproj/AppAccessibility.strings",
+			},
+			size:             4096,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Tiny files (100 bytes) - should filter",
+			files: []string{
+				"Payload/App.app/metadata.plist",
+				"Payload/App.app/Frameworks/SDK.framework/metadata.plist",
+			},
+			size:             100,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Zero size files - should filter",
+			files: []string{
+				"Payload/App.app/.gitkeep",
+				"Payload/App.app/Resources/.gitkeep",
+			},
+			size:             0,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Files just above block size (4097) - should NOT filter",
+			files: []string{
+				"Payload/App.app/icon.png",
+				"Payload/App.app/Resources/icon.png",
+			},
+			size:             4097,
+			wantShouldFilter: false,
+		},
+		{
+			name: "Large files - should NOT filter",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			size:             102400,
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/tiny.plist",
+			},
+			size:             100,
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  tt.size,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
+			}
+		})
+	}
+}
+
+func TestSmallDuplicatesRule_DisabledByConfig(t *testing.T) {
+	// With FilterSmallDuplicates disabled, small files should pass through
+	config := RuleConfig{FilterSmallDuplicates: false}
+	categorizer := NewDuplicateCategorizerWithConfig(config)
+
+	duplicates := []types.DuplicateSet{
+		{
+			Files: []string{
+				"Payload/App.app/tiny.plist",
+				"Payload/App.app/Resources/tiny.plist",
+			},
+			Count: 2,
+			Size:  100, // Below 4KB
+		},
+	}
+
+	actionable, filtered := categorizer.FilterDuplicates(duplicates)
+	assert.Equal(t, 1, len(actionable), "Small file should be actionable when filter is disabled")
+	assert.Equal(t, 0, len(filtered), "Nothing should be filtered")
+}
+
+func TestSmallDuplicatesRule_Integration(t *testing.T) {
+	categorizer := NewDuplicateCategorizer()
+
+	duplicates := []types.DuplicateSet{
+		{
+			// Small file - should be filtered
+			Files: []string{
+				"Payload/App.app/en.lproj/Accessibility.strings",
+				"Payload/App.app/de.lproj/Accessibility.strings",
+			},
+			Count: 2,
+			Size:  256,
+		},
+		{
+			// Large file - should be actionable
+			Files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			Count: 2,
+			Size:  102400,
+		},
+	}
+
+	actionable, filtered := categorizer.FilterDuplicates(duplicates)
+
+	assert.Equal(t, 1, len(actionable), "Expected 1 actionable duplicate")
+	assert.Contains(t, actionable[0].Files[0], "logo.png")
+
+	// Small file should be filtered (either by localization rule or small duplicates rule)
+	assert.Equal(t, 1, len(filtered), "Expected 1 filtered duplicate")
 }
 
 func TestPriorityCalculation(t *testing.T) {

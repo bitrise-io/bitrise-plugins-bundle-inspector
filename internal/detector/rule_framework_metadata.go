@@ -31,11 +31,19 @@ func (r *FrameworkMetadataRule) Name() string {
 
 // Common framework metadata file extensions and names
 var frameworkMetadataPatterns = []string{
-	".supx",          // Carthage metadata
-	".bcsymbolmap",   // Bitcode symbol maps
-	".swiftdoc",      // Swift documentation (sometimes duplicated)
-	".swiftmodule",   // Swift module files (sometimes duplicated)
+	".supx",            // Carthage/SC_Info metadata
+	".bcsymbolmap",     // Bitcode symbol maps
+	".swiftdoc",        // Swift documentation (sometimes duplicated)
+	".swiftmodule",     // Swift module files (sometimes duplicated)
 	"module.modulemap", // Clang module maps
+	"PkgInfo",          // Mandatory iOS bundle type file (APPL????)
+}
+
+// bundleMetadataFiles are metadata files that are required per-bundle (app, framework, extension)
+// and should be filtered when found in different bundles regardless of bundle type.
+var bundleMetadataFiles = map[string]bool{
+	"PkgInfo": true, // Required in every .app, .appex, .framework bundle
+	".supx":   true, // SC_Info code signing metadata required per bundle
 }
 
 // Evaluate checks if duplicate files are framework metadata
@@ -70,6 +78,21 @@ func (r *FrameworkMetadataRule) Evaluate(dup types.DuplicateSet) FilterResult {
 		return FilterResult{ShouldFilter: false}
 	}
 
+	// Check if this is a bundle-level metadata file (PkgInfo, .supx)
+	// These are required per-bundle and should be filtered when in different bundles
+	// regardless of whether those bundles are frameworks, apps, or extensions.
+	isBundleMetadata := bundleMetadataFiles[fileName] || bundleMetadataFiles["."+ext]
+	if isBundleMetadata {
+		distinctBundles := r.analyzer.GetDistinctBundles(dup.Files)
+		if len(distinctBundles) >= 2 {
+			return FilterResult{
+				ShouldFilter: true,
+				Reason:       "Bundle metadata in different bundles (required per-bundle file)",
+				RuleID:       r.ID(),
+			}
+		}
+	}
+
 	// Check if files are in framework paths
 	allInFrameworks := true
 	for _, file := range dup.Files {
@@ -87,7 +110,6 @@ func (r *FrameworkMetadataRule) Evaluate(dup types.DuplicateSet) FilterResult {
 				ShouldFilter: true,
 				Reason:       "Framework metadata in different frameworks (required framework metadata)",
 				RuleID:       r.ID(),
-				Priority:     "",
 			}
 		}
 	}
@@ -98,7 +120,6 @@ func (r *FrameworkMetadataRule) Evaluate(dup types.DuplicateSet) FilterResult {
 			ShouldFilter: true,
 			Reason:       "Bitcode symbol map files (build artifacts)",
 			RuleID:       r.ID(),
-			Priority:     "",
 		}
 	}
 

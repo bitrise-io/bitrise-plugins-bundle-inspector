@@ -142,6 +142,66 @@ func TestAssetDuplicateDetector_MultipleDuplicates(t *testing.T) {
 	assert.Equal(t, int64(3000), duplicates[1].WastedSize) // (2-1) * 3000
 }
 
+func TestAssetDuplicateDetector_SkipsDeviceVariants(t *testing.T) {
+	detector := NewAssetDuplicateDetector()
+
+	catalogs := []*assets.AssetCatalogInfo{
+		{
+			Path: "Assets.car",
+			Assets: []assets.AssetInfo{
+				// Same asset, same name, same .car, different idiom - device variants
+				{Name: "AppIcon", Type: "icon", Size: 5000, SHA1Digest: "variant_hash", Idiom: "phone", Scale: "2x"},
+				{Name: "AppIcon", Type: "icon", Size: 5000, SHA1Digest: "variant_hash", Idiom: "pad", Scale: "2x"},
+			},
+		},
+	}
+
+	duplicates := detector.DetectAssetDuplicates(catalogs)
+	assert.Len(t, duplicates, 0, "Device variants should not be reported as duplicates")
+}
+
+func TestAssetDuplicateDetector_KeepsCrossCatalogDuplicates(t *testing.T) {
+	detector := NewAssetDuplicateDetector()
+
+	catalogs := []*assets.AssetCatalogInfo{
+		{
+			Path: "Assets.car",
+			Assets: []assets.AssetInfo{
+				{Name: "Icon", Type: "icon", Size: 5000, SHA1Digest: "cross_hash", Idiom: "phone", Scale: "2x"},
+			},
+		},
+		{
+			Path: "Frameworks/SDK.framework/Assets.car",
+			Assets: []assets.AssetInfo{
+				// Same hash but different .car - this IS a true duplicate
+				{Name: "SDKIcon", Type: "icon", Size: 5000, SHA1Digest: "cross_hash", Idiom: "phone", Scale: "2x"},
+			},
+		},
+	}
+
+	duplicates := detector.DetectAssetDuplicates(catalogs)
+	assert.Len(t, duplicates, 1, "Cross-catalog duplicates should still be reported")
+}
+
+func TestAssetDuplicateDetector_KeepsSameIdiomDuplicates(t *testing.T) {
+	detector := NewAssetDuplicateDetector()
+
+	catalogs := []*assets.AssetCatalogInfo{
+		{
+			Path: "Assets.car",
+			Assets: []assets.AssetInfo{
+				// Same name, same idiom, same .car - true duplicate (different rendition names)
+				{Name: "Logo", Type: "image", Size: 3000, SHA1Digest: "same_hash", Idiom: "phone", Scale: "2x"},
+				{Name: "Logo", Type: "image", Size: 3000, SHA1Digest: "same_hash", Idiom: "phone", Scale: "3x"},
+			},
+		},
+	}
+
+	duplicates := detector.DetectAssetDuplicates(catalogs)
+	// Same idiom for both - NOT a device variant group, should be reported
+	assert.Len(t, duplicates, 1, "Same-idiom duplicates should still be reported")
+}
+
 func TestBuildFullVirtualPath(t *testing.T) {
 	tests := []struct {
 		name     string

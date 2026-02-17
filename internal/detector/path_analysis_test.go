@@ -487,3 +487,121 @@ func TestPathAnalyzer_GetFileExtension(t *testing.T) {
 		})
 	}
 }
+
+func TestPathAnalyzer_ExtractLocaleDirectory(t *testing.T) {
+	analyzer := NewPathAnalyzer("")
+
+	tests := []struct {
+		name       string
+		path       string
+		wantLocale string
+		wantFound  bool
+	}{
+		{
+			name:       "Spanish region variant",
+			path:       "Resources/es_419/messages.offline_catalog",
+			wantLocale: "es_419",
+			wantFound:  true,
+		},
+		{
+			name:       "Hebrew legacy alias",
+			path:       "Resources/he_ALL/messages.offline_catalog",
+			wantLocale: "he_ALL",
+			wantFound:  true,
+		},
+		{
+			name:       "Chinese variant with dash",
+			path:       "Resources/zh-CN_ALL/data.bin",
+			wantLocale: "zh-CN_ALL",
+			wantFound:  true,
+		},
+		{
+			name:       "Standard locale",
+			path:       "Resources/en_US/strings.bin",
+			wantLocale: "en_US",
+			wantFound:  true,
+		},
+		{
+			name:       "No locale directory",
+			path:       "Payload/App.app/Resources/data.bin",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "Single letter directory (not locale)",
+			path:       "Resources/a/data.bin",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "lproj is not a locale directory",
+			path:       "Resources/en.lproj/Localizable.strings",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "my_module is not a locale directory",
+			path:       "Payload/App.app/my_module/data.bin",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "go_test is not a locale directory",
+			path:       "Payload/App.app/go_test/file.go",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "lib_utils is not a locale directory",
+			path:       "Payload/App.app/lib_utils/helper.so",
+			wantLocale: "",
+			wantFound:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			locale, found := analyzer.ExtractLocaleDirectory(tt.path)
+			assert.Equal(t, tt.wantFound, found, "Found mismatch")
+			assert.Equal(t, tt.wantLocale, locale, "Locale mismatch")
+		})
+	}
+}
+
+func TestPathAnalyzer_ReplaceLocaleDirectory(t *testing.T) {
+	analyzer := NewPathAnalyzer("")
+
+	tests := []struct {
+		name           string
+		path           string
+		wantNormalized string
+		wantFound      bool
+	}{
+		{
+			name:           "Replace Spanish variant",
+			path:           "Resources/es_419/messages.offline_catalog",
+			wantNormalized: "Resources/<LOCALE>/messages.offline_catalog",
+			wantFound:      true,
+		},
+		{
+			name:           "Replace Chinese variant",
+			path:           "Resources/zh-CN_ALL/data.bin",
+			wantNormalized: "Resources/<LOCALE>/data.bin",
+			wantFound:      true,
+		},
+		{
+			name:           "No locale to replace",
+			path:           "Payload/App.app/data.bin",
+			wantNormalized: "Payload/App.app/data.bin",
+			wantFound:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalized, found := analyzer.ReplaceLocaleDirectory(tt.path)
+			assert.Equal(t, tt.wantFound, found, "Found mismatch")
+			assert.Equal(t, tt.wantNormalized, normalized, "Normalized mismatch")
+		})
+	}
+}

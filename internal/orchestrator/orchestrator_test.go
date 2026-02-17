@@ -218,6 +218,69 @@ func TestComputeDuplicatePathPrefix_APK(t *testing.T) {
 	}
 }
 
+func TestGenerateOptimizations_ExtensionDuplicationMessage(t *testing.T) {
+	orch := New()
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Size: 100 * 1024 * 1024,
+		},
+		Duplicates: []types.DuplicateSet{
+			{
+				// Extension duplication - should get specific message
+				Hash:  "ext_hash",
+				Size:  600 * 1024,
+				Count: 2,
+				Files: []string{
+					"Payload/App.app/logo.png",
+					"Payload/App.app/PlugIns/ShareExtension.appex/logo.png",
+				},
+				WastedSize: 600 * 1024,
+			},
+			{
+				// Regular duplication - should get default message
+				Hash:  "reg_hash",
+				Size:  200 * 1024,
+				Count: 2,
+				Files: []string{
+					"Payload/App.app/icon.png",
+					"Payload/App.app/Resources/icon.png",
+				},
+				WastedSize: 200 * 1024,
+			},
+		},
+	}
+
+	optimizations := orch.generateOptimizations(report)
+
+	// Find the extension duplication optimization
+	var extOpt, regOpt *types.Optimization
+	for i := range optimizations {
+		for _, f := range optimizations[i].Files {
+			if f == "Payload/App.app/PlugIns/ShareExtension.appex/logo.png" {
+				extOpt = &optimizations[i]
+			}
+			if f == "Payload/App.app/Resources/icon.png" {
+				regOpt = &optimizations[i]
+			}
+		}
+	}
+
+	if extOpt == nil {
+		t.Fatal("Expected to find extension duplication optimization")
+	}
+	if extOpt.Action != "Consider using App Groups for shared data or an embedded framework to reduce duplication across extensions" {
+		t.Errorf("Expected specific extension message, got: %s", extOpt.Action)
+	}
+
+	if regOpt == nil {
+		t.Fatal("Expected to find regular duplication optimization")
+	}
+	if regOpt.Action != "Keep only one copy and deduplicate references" {
+		t.Errorf("Expected default message, got: %s", regOpt.Action)
+	}
+}
+
 func TestAnnotateFileTreeDuplicates_IPAPrefix(t *testing.T) {
 	orch := New()
 	hash := "sha256hash"

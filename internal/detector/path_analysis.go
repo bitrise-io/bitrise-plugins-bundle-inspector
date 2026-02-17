@@ -2,8 +2,15 @@ package detector
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// localeDirectoryPattern matches locale directory segments like "es_419", "zh-CN_ALL", "he_ALL", "en_US".
+// Pattern: 2-letter lowercase language code followed by one or more segments of separator (_/-)
+// plus either an uppercase country/script code (2-4 chars) or a 3-digit numeric region code.
+// This avoids false positives on generic directory names like "my_module" or "go_test".
+var localeDirectoryPattern = regexp.MustCompile(`^[a-z]{2}(?:[_-](?:[A-Z]{2,4}|[0-9]{3}))+$`)
 
 // PathAnalyzer provides utilities for analyzing iOS/Android artifact paths
 type PathAnalyzer struct {
@@ -192,4 +199,37 @@ func (p *PathAnalyzer) GetFileExtension(path string) string {
 		return name[idx+1:]
 	}
 	return ""
+}
+
+// ExtractLocaleDirectory finds a locale directory segment in the path and returns it.
+// Matches patterns like "es_419", "zh-CN_ALL", "he_ALL", "en_US", "iw_ALL".
+// Returns the locale segment and true if found, empty string and false otherwise.
+func (p *PathAnalyzer) ExtractLocaleDirectory(path string) (string, bool) {
+	path = filepath.ToSlash(path)
+	parts := strings.Split(path, "/")
+
+	for _, part := range parts {
+		if localeDirectoryPattern.MatchString(part) {
+			return part, true
+		}
+	}
+
+	return "", false
+}
+
+// ReplaceLocaleDirectory replaces the locale directory segment in a path with a placeholder.
+// This allows comparing paths that differ only by locale. Returns the normalized path and
+// whether a locale segment was found.
+func (p *PathAnalyzer) ReplaceLocaleDirectory(path string) (string, bool) {
+	path = filepath.ToSlash(path)
+	parts := strings.Split(path, "/")
+
+	for i, part := range parts {
+		if localeDirectoryPattern.MatchString(part) {
+			parts[i] = "<LOCALE>"
+			return strings.Join(parts, "/"), true
+		}
+	}
+
+	return path, false
 }

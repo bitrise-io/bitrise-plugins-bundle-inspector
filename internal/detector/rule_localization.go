@@ -36,7 +36,14 @@ func (r *LocalizationRule) Evaluate(dup types.DuplicateSet) FilterResult {
 		return FilterResult{ShouldFilter: false}
 	}
 
-	// Check if all files are localization files
+	// First: check locale-variant directory patterns (any file type)
+	// These are files in different locale directories (e.g., es_419/, zh-CN_ALL/, he_ALL/)
+	// that share identical content - applies to any file type, not just .strings
+	if result := r.evaluateLocaleDirectories(dup); result.ShouldFilter {
+		return result
+	}
+
+	// Below checks are for .strings/.stringsdict files only (iOS .lproj localization)
 	allLocalizationFiles := true
 	for _, file := range dup.Files {
 		ext := r.analyzer.GetFileExtension(file)
@@ -70,7 +77,6 @@ func (r *LocalizationRule) Evaluate(dup types.DuplicateSet) FilterResult {
 			ShouldFilter: true,
 			Reason:       "Localization files in different .lproj bundles (bundle isolation pattern)",
 			RuleID:       r.ID(),
-			Priority:     "",
 		}
 	}
 
@@ -103,11 +109,46 @@ func (r *LocalizationRule) Evaluate(dup types.DuplicateSet) FilterResult {
 				ShouldFilter: true,
 				Reason:       "Localization files in different bundles with same locale (bundle isolation)",
 				RuleID:       r.ID(),
-				Priority:     "",
 			}
 		}
 	}
 
-	// Not a recognized localization isolation pattern
+	return FilterResult{ShouldFilter: false}
+}
+
+// evaluateLocaleDirectories checks if files differ only by locale directory segment.
+// Handles patterns like es_419/, es_AR/, es_MX/ for Spanish variants, or he_ALL/ vs iw_ALL/
+// for legacy language code aliases.
+func (r *LocalizationRule) evaluateLocaleDirectories(dup types.DuplicateSet) FilterResult {
+	// All files must contain a locale directory segment
+	normalizedPaths := make(map[string]bool)
+	locales := make(map[string]bool)
+	allHaveLocale := true
+
+	for _, file := range dup.Files {
+		normalized, found := r.analyzer.ReplaceLocaleDirectory(file)
+		if !found {
+			allHaveLocale = false
+			break
+		}
+
+		locale, _ := r.analyzer.ExtractLocaleDirectory(file)
+		normalizedPaths[normalized] = true
+		locales[locale] = true
+	}
+
+	if !allHaveLocale {
+		return FilterResult{ShouldFilter: false}
+	}
+
+	// If all files have the same path structure (only locale differs) and there are 2+ locales
+	if len(normalizedPaths) == 1 && len(locales) >= 2 {
+		return FilterResult{
+			ShouldFilter: true,
+			Reason:       "Files in different locale variant directories (language/region variants with identical content)",
+			RuleID:       r.ID(),
+		}
+	}
+
 	return FilterResult{ShouldFilter: false}
 }

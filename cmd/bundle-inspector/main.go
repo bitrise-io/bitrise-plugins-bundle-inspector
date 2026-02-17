@@ -24,10 +24,11 @@ var (
 )
 
 var (
-	outputFormats     string // Comma-separated list of formats
-	outputFiles       string // Comma-separated list of filenames (optional)
-	includeDuplicates bool
-	noAutoDetect      bool
+	outputFormats         string // Comma-separated list of formats
+	outputFiles           string // Comma-separated list of filenames (optional)
+	includeDuplicates     bool
+	filterSmallDuplicates bool
+	noAutoDetect          bool
 )
 
 func main() {
@@ -79,6 +80,8 @@ func init() {
 		"Output filename(s) - comma-separated when using multiple formats (default: auto-generated)")
 	analyzeCmd.Flags().BoolVar(&includeDuplicates, "include-duplicates", true,
 		"Enable duplicate file detection")
+	analyzeCmd.Flags().BoolVar(&filterSmallDuplicates, "filter-small-duplicates", true,
+		"Filter out duplicate files at or below 4KB (filesystem block size)")
 	analyzeCmd.Flags().BoolVar(&noAutoDetect, "no-auto-detect", false,
 		"Disable auto-detection of bundle path from Bitrise environment")
 }
@@ -268,6 +271,7 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 	// Create orchestrator and run analysis
 	orch := orchestrator.New()
 	orch.IncludeDuplicates = includeDuplicates
+	orch.FilterSmallDuplicates = filterSmallDuplicates
 
 	fmt.Fprintf(os.Stderr, "Analyzing %s...\n", artifactPath)
 	if includeDuplicates {

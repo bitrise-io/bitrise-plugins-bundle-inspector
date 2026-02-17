@@ -19,13 +19,32 @@ type Rule interface {
 	Evaluate(dup types.DuplicateSet) FilterResult // Evaluate a duplicate set
 }
 
+// RuleConfig holds configuration options for rule registration.
+type RuleConfig struct {
+	// FilterSmallDuplicates controls whether files at or below filesystem block size (4KB)
+	// are filtered out. When false, small duplicates are reported like any other duplicate.
+	FilterSmallDuplicates bool
+}
+
+// DefaultRuleConfig returns the default rule configuration.
+func DefaultRuleConfig() RuleConfig {
+	return RuleConfig{
+		FilterSmallDuplicates: true,
+	}
+}
+
 // RuleRegistry manages all duplicate detection rules
 type RuleRegistry struct {
 	rules []Rule
 }
 
-// NewRuleRegistry creates a new rule registry with default rules
+// NewRuleRegistry creates a new rule registry with default rules and default config.
 func NewRuleRegistry() *RuleRegistry {
+	return NewRuleRegistryWithConfig(DefaultRuleConfig())
+}
+
+// NewRuleRegistryWithConfig creates a new rule registry with the given configuration.
+func NewRuleRegistryWithConfig(config RuleConfig) *RuleRegistry {
 	registry := &RuleRegistry{
 		rules: make([]Rule, 0),
 	}
@@ -40,6 +59,18 @@ func NewRuleRegistry() *RuleRegistry {
 	registry.Register(NewFrameworkScriptsRule())
 	registry.Register(NewFrameworkMetadataRule())
 	registry.Register(NewThirdPartySDKRule())
+
+	// Register new filtering rules (before actionable rules).
+	// Rule 10 filters files <= 4KB (filesystem block size) as negligible savings.
+	// Registered before Rules 8-9 so small files never reach actionable rules.
+	if config.FilterSmallDuplicates {
+		registry.Register(NewSmallDuplicatesRule())
+	}
+	// Rule 11 filters asset catalog device variants (phone/pad idioms).
+	registry.Register(NewDeviceVariantRule())
+	// Rule 12 filters fonts duplicated across extension sandbox boundaries.
+	// Must come before Rule 8 because font extension duplication is not actionable.
+	registry.Register(NewFontExtensionRule())
 
 	// Register actionable rules (PR 3: Rules 8-9)
 	registry.Register(NewExtensionDuplicationRule())
