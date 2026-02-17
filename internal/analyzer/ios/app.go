@@ -137,8 +137,11 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	if err == nil && iconData != "" {
 		a.Logger.Info("Icon extracted from loose file in bundle")
 	} else {
+		if err != nil {
+			a.Logger.Debug("Loose icon extraction failed: %v, trying Assets.car fallback", err)
+		}
 		// Fallback: try extracting icon from Assets.car
-		if carIcon := tryExtractIconFromAssetsCar(path, appMetadata, assetCatalogs); carIcon != "" {
+		if carIcon := tryExtractIconFromAssetsCar(ctx, path, appMetadata, assetCatalogs); carIcon != "" {
 			iconData = carIcon
 			a.Logger.Info("Icon extracted from Assets.car")
 		}

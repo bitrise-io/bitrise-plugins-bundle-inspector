@@ -38,11 +38,11 @@ func TestGetIconPriority_PlistGuidedBonus(t *testing.T) {
 }
 
 func TestIconSearchHints_NilSafe(t *testing.T) {
-	// Verify that nil hints doesn't panic
-	var hints *IconSearchHints
-	assert.Nil(t, hints)
-
-	// The functions accept nil hints gracefully (tested via build + run)
+	// Verify that nil hints doesn't panic when passed to the function
+	tmpDir := t.TempDir()
+	_, err := ExtractIconFromDirectoryWithHints(tmpDir, nil)
+	// Should return an error (no icons in empty dir) but not panic
+	assert.Error(t, err)
 }
 
 func TestIsCgBIPNG(t *testing.T) {

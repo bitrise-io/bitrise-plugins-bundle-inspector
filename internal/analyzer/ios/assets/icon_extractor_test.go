@@ -3,6 +3,7 @@
 package assets
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestExtractIconFromCar_InvalidPath(t *testing.T) {
-	_, err := ExtractIconFromCar("/nonexistent/Assets.car", []string{"AppIcon"}, nil)
+	_, err := ExtractIconFromCar(context.Background(),"/nonexistent/Assets.car", []string{"AppIcon"}, nil)
 	assert.Error(t, err)
 }
 
@@ -24,7 +25,7 @@ func TestExtractIconFromCar_EmptyCandidates(t *testing.T) {
 	tmpFile.Write([]byte("not a real car file"))
 	tmpFile.Close()
 
-	_, err = ExtractIconFromCar(tmpFile.Name(), nil, nil)
+	_, err = ExtractIconFromCar(context.Background(),tmpFile.Name(), nil, nil)
 	assert.Error(t, err)
 	// With nil iconNames and nil catalogAssets, only fallback names are tried
 	assert.Contains(t, err.Error(), "swift icon extraction failed")
@@ -45,7 +46,7 @@ func TestExtractIconFromCar_WithCatalogAssets(t *testing.T) {
 	tmpFile.Write([]byte("not a real car file"))
 	tmpFile.Close()
 
-	_, err = ExtractIconFromCar(tmpFile.Name(), []string{"PlistIcon"}, catalogAssets)
+	_, err = ExtractIconFromCar(context.Background(),tmpFile.Name(), []string{"PlistIcon"}, catalogAssets)
 	assert.Error(t, err)
 	// All 6 candidates are passed to a single Swift invocation
 	assert.Contains(t, err.Error(), "swift icon extraction failed")
@@ -57,7 +58,7 @@ func TestExtractIconFromCar_Wikipedia(t *testing.T) {
 		t.Skip("Wikipedia Assets.car test artifact not found")
 	}
 
-	data, err := ExtractIconFromCar(carPath, []string{"AppIcon"}, nil)
+	data, err := ExtractIconFromCar(context.Background(),carPath, []string{"AppIcon"}, nil)
 	require.NoError(t, err)
 	assert.True(t, len(data) > 100, "Icon data should be non-trivial in size")
 

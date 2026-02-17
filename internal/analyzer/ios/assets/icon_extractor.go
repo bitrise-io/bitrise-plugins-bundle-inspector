@@ -74,7 +74,7 @@ var pngSignature = [8]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 // It tries each candidate name in order: plist icon names, icon-type assets from
 // the parsed catalog, and common fallback names.
 // Returns raw PNG bytes, or error if extraction fails.
-func ExtractIconFromCar(carPath string, iconNames []string, catalogAssets []AssetInfo) ([]byte, error) {
+func ExtractIconFromCar(ctx context.Context, carPath string, iconNames []string, catalogAssets []AssetInfo) ([]byte, error) {
 	// Build deduplicated candidate list
 	seen := make(map[string]struct{})
 	var candidates []string
@@ -109,13 +109,13 @@ func ExtractIconFromCar(carPath string, iconNames []string, catalogAssets []Asse
 		return nil, fmt.Errorf("no icon candidate names to try")
 	}
 
-	return extractIconWithSwift(carPath, candidates)
+	return extractIconWithSwift(ctx, carPath, candidates)
 }
 
 // extractIconWithSwift extracts a named icon from an Assets.car file by creating
 // a temporary bundle structure and running a Swift script that tries all candidate
 // names in a single invocation.
-func extractIconWithSwift(carPath string, iconNames []string) ([]byte, error) {
+func extractIconWithSwift(ctx context.Context, carPath string, iconNames []string) ([]byte, error) {
 	// Create a temporary bundle directory: <tmp>/Contents/Resources/
 	bundleDir, err := os.MkdirTemp("", "icon-bundle-*")
 	if err != nil {
@@ -151,7 +151,7 @@ func extractIconWithSwift(carPath string, iconNames []string) ([]byte, error) {
 	scriptFile.Close()
 
 	// Run: swift <script> <bundle-path> <icon-name-1> <icon-name-2> ...
-	ctx, cancel := context.WithTimeout(context.Background(), swiftTimeout)
+	ctx, cancel := context.WithTimeout(ctx, swiftTimeout)
 	defer cancel()
 
 	args := append([]string{scriptFile.Name(), bundleDir}, iconNames...)

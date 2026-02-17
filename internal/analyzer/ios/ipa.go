@@ -207,8 +207,11 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	if err == nil && iconData != "" {
 		a.Logger.Info("Icon extracted from loose file in archive")
 	} else {
+		if err != nil {
+			a.Logger.Debug("Loose icon extraction failed: %v, trying Assets.car fallback", err)
+		}
 		// Fallback: try extracting icon from Assets.car
-		if carIcon := tryExtractIconFromAssetsCar(appBundlePath, analysis.appMetadata, analysis.assetCatalogs); carIcon != "" {
+		if carIcon := tryExtractIconFromAssetsCar(ctx, appBundlePath, analysis.appMetadata, analysis.assetCatalogs); carIcon != "" {
 			iconData = carIcon
 			a.Logger.Info("Icon extracted from Assets.car")
 		}
@@ -662,7 +665,7 @@ func generateStripSymbolsOptimizations(binaries map[string]*types.BinaryInfo) []
 
 // tryExtractIconFromAssetsCar attempts to extract an app icon from an Assets.car file.
 // Returns a base64 data URI string, or empty string if extraction fails.
-func tryExtractIconFromAssetsCar(appBundlePath string, appMetadata *AppMetadata, assetCatalogs []*assets.AssetCatalogInfo) string {
+func tryExtractIconFromAssetsCar(ctx context.Context, appBundlePath string, appMetadata *AppMetadata, assetCatalogs []*assets.AssetCatalogInfo) string {
 	carPath := filepath.Join(appBundlePath, "Assets.car")
 	if _, err := os.Stat(carPath); err != nil {
 		return ""
@@ -678,7 +681,7 @@ func tryExtractIconFromAssetsCar(appBundlePath string, appMetadata *AppMetadata,
 		catalogAssets = append(catalogAssets, cat.Assets...)
 	}
 
-	carIcon, err := assets.ExtractIconFromCar(carPath, iconNames, catalogAssets)
+	carIcon, err := assets.ExtractIconFromCar(ctx, carPath, iconNames, catalogAssets)
 	if err != nil || len(carIcon) == 0 {
 		return ""
 	}
