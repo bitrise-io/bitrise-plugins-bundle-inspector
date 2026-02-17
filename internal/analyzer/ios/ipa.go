@@ -197,8 +197,12 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromZip(path, "ipa")
+	// Extract app icon with Info.plist-guided search
+	var iconHints *util.IconSearchHints
+	if analysis.appMetadata != nil && len(analysis.appMetadata.IconNames) > 0 {
+		iconHints = &util.IconSearchHints{PlistIconNames: analysis.appMetadata.IconNames}
+	}
+	iconData, err := util.ExtractIconFromZipWithHints(path, "ipa", iconHints)
 	if err != nil {
 		a.Logger.Warn("Failed to extract icon: %v", err)
 		// Continue without icon - it's not critical

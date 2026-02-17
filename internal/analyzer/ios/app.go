@@ -128,8 +128,12 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromDirectory(path)
+	// Extract app icon with Info.plist-guided search
+	var iconHints *util.IconSearchHints
+	if appMetadata != nil && len(appMetadata.IconNames) > 0 {
+		iconHints = &util.IconSearchHints{PlistIconNames: appMetadata.IconNames}
+	}
+	iconData, err := util.ExtractIconFromDirectoryWithHints(path, iconHints)
 	if err != nil {
 		a.Logger.Warn("Failed to extract icon: %v", err)
 		// Continue without icon - it's not critical
