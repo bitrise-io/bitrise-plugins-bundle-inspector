@@ -44,6 +44,7 @@ func NewRuleRegistry() *RuleRegistry {
 	// Register new filtering rules (before actionable rules)
 	registry.Register(NewSmallDuplicatesRule())
 	registry.Register(NewDeviceVariantRule())
+	registry.Register(NewFontExtensionRule())
 
 	// Register actionable rules (PR 3: Rules 8-9)
 	registry.Register(NewExtensionDuplicationRule())

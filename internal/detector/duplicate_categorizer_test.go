@@ -411,9 +411,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 11 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
+	// Should have 12 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
 	rules := registry.GetRules()
-	require.Equal(t, 11, len(rules), "Should have 11 default rules")
+	require.Equal(t, 12, len(rules), "Should have 12 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -430,6 +430,7 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
 	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have Small duplicates rule")
 	assert.True(t, ruleIDs["rule-11-device-variant"], "Should have Device variant rule")
+	assert.True(t, ruleIDs["rule-12-font-extension"], "Should have Font extension rule")
 	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have Extension duplication rule")
 	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
 }
@@ -983,6 +984,98 @@ func TestAssetDuplicationRule(t *testing.T) {
 			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
 			if tt.wantPriority != "" {
 				assert.Equal(t, tt.wantPriority, result.Priority, "Priority mismatch")
+			}
+		})
+	}
+}
+
+func TestFontExtensionRule(t *testing.T) {
+	rule := NewFontExtensionRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		wantShouldFilter bool
+	}{
+		{
+			name: "Font in framework and extension - should filter",
+			files: []string{
+				"Payload/App.app/Frameworks/FBSharedFramework.framework/InstagramSans-Regular.otf",
+				"Payload/App.app/PlugIns/WidgetExtension.appex/InstagramSans-Regular.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Font in app and multiple extensions - should filter",
+			files: []string{
+				"Payload/App.app/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/Widget.appex/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/IntentExtension.appex/UberMove-Regular.otf",
+				"Payload/App.app/PlugIns/RideExtension.appex/UberMove-Regular.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "TTF font in app and extension - should filter",
+			files: []string{
+				"Payload/App.app/GoogleSans-Regular.ttf",
+				"Payload/App.app/PlugIns/NotificationService.appex/GoogleSans-Regular.ttf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Fonts across multiple extensions only - should filter",
+			files: []string{
+				"Payload/App.app/PlugIns/Share.appex/Font.otf",
+				"Payload/App.app/PlugIns/Widget.appex/Font.otf",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Font duplicated within same app (no extension) - should NOT filter",
+			files: []string{
+				"Payload/App.app/Fonts/MyFont.otf",
+				"Payload/App.app/Resources/MyFont.otf",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Non-font file in extension - should NOT filter",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/PlugIns/Widget.appex/logo.png",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Mixed font and non-font files - should NOT filter",
+			files: []string{
+				"Payload/App.app/MyFont.otf",
+				"Payload/App.app/PlugIns/Widget.appex/config.json",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/PlugIns/Widget.appex/Font.otf",
+			},
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  77000,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
 			}
 		})
 	}
