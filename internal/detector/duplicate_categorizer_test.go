@@ -602,6 +602,42 @@ func TestFrameworkMetadataRule(t *testing.T) {
 			wantShouldFilter: true,
 		},
 		{
+			name: "PkgInfo in app and frameworks and extensions - should filter",
+			files: []string{
+				"Payload/App.app/PkgInfo",
+				"Payload/App.app/Frameworks/SDK.framework/PkgInfo",
+				"Payload/App.app/PlugIns/Widget.appex/PkgInfo",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "PkgInfo in app and multiple extensions - should filter",
+			files: []string{
+				"Payload/App.app/PkgInfo",
+				"Payload/App.app/PlugIns/Share.appex/PkgInfo",
+				"Payload/App.app/PlugIns/Widget.appex/PkgInfo",
+				"Payload/App.app/PlugIns/WatchWidget.appex/PkgInfo",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".supx in app root and framework - should filter (relaxed)",
+			files: []string{
+				"Payload/App.app/SC_Info/App.supx",
+				"Payload/App.app/Frameworks/Shared.framework/SC_Info/Shared.supx",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: ".supx in app, framework, and extension - should filter",
+			files: []string{
+				"Payload/App.app/SC_Info/App.supx",
+				"Payload/App.app/Frameworks/Shared.framework/SC_Info/Shared.supx",
+				"Payload/App.app/PlugIns/Widget.appex/SC_Info/Widget.supx",
+			},
+			wantShouldFilter: true,
+		},
+		{
 			name: "Not metadata file - skip",
 			files: []string{
 				"Payload/App.app/Frameworks/SDK.framework/config.json",
