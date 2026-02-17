@@ -127,18 +127,18 @@ func TestExtractIconNames(t *testing.T) {
 			expected: []string{"AppIcon60x60", "AppIcon", "AppIcon76x76"},
 		},
 		{
-			name: "legacy top-level CFBundleIconFiles",
+			name: "legacy top-level CFBundleIconFiles with .png extension stripped",
 			plist: map[string]interface{}{
 				"CFBundleIconFiles": []interface{}{"Icon.png", "Icon@2x.png"},
 			},
-			expected: []string{"Icon.png", "Icon@2x.png"},
+			expected: []string{"Icon", "Icon@2x"},
 		},
 		{
-			name: "legacy singular CFBundleIconFile",
+			name: "legacy singular CFBundleIconFile with .png extension stripped",
 			plist: map[string]interface{}{
 				"CFBundleIconFile": "Icon.png",
 			},
-			expected: []string{"Icon.png"},
+			expected: []string{"Icon"},
 		},
 		{
 			name: "custom icon names (Facebook-style)",

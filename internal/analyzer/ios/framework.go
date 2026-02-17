@@ -219,6 +219,11 @@ func extractIconNames(plistData map[string]interface{}) []string {
 		names = append(names, iconFile)
 	}
 
+	// Normalize: strip .png extension (legacy plists may include it, e.g. "Icon.png")
+	for i, name := range names {
+		names[i] = strings.TrimSuffix(name, ".png")
+	}
+
 	return deduplicateStrings(names)
 }
 
