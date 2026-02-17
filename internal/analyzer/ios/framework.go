@@ -139,6 +139,7 @@ type AppMetadata struct {
 	Version      string
 	BuildVersion string
 	MinOSVersion string
+	IconNames    []string // Icon base names from CFBundleIcons/CFBundleIconFiles
 }
 
 // ParseAppInfoPlist extracts app metadata from the main app's Info.plist
@@ -182,7 +183,86 @@ func ParseAppInfoPlist(infoPlistPath string) (*AppMetadata, error) {
 		metadata.MinOSVersion = minOS
 	}
 
+	// Extract icon names
+	metadata.IconNames = extractIconNames(plistData)
+
 	return metadata, nil
+}
+
+// extractIconNames extracts icon base names from a parsed Info.plist.
+// It checks CFBundleIcons, CFBundleIcons~ipad, and legacy keys.
+// Returns nil if no icon names are declared (common for apps using Assets.car only).
+func extractIconNames(plistData map[string]interface{}) []string {
+	var names []string
+
+	// CFBundleIcons > CFBundlePrimaryIcon > CFBundleIconFiles / CFBundleIconName
+	if icons, ok := plistData["CFBundleIcons"].(map[string]interface{}); ok {
+		names = append(names, extractIconFilesFromDict(icons)...)
+	}
+
+	// CFBundleIcons~ipad variant
+	if icons, ok := plistData["CFBundleIcons~ipad"].(map[string]interface{}); ok {
+		names = append(names, extractIconFilesFromDict(icons)...)
+	}
+
+	// Legacy: top-level CFBundleIconFiles (array)
+	if iconFiles, ok := plistData["CFBundleIconFiles"].([]interface{}); ok {
+		for _, f := range iconFiles {
+			if s, ok := f.(string); ok && s != "" {
+				names = append(names, s)
+			}
+		}
+	}
+
+	// Legacy: CFBundleIconFile (singular, very old apps)
+	if iconFile, ok := plistData["CFBundleIconFile"].(string); ok && iconFile != "" {
+		names = append(names, iconFile)
+	}
+
+	return deduplicateStrings(names)
+}
+
+// extractIconFilesFromDict extracts icon names from a CFBundleIcons dictionary.
+func extractIconFilesFromDict(icons map[string]interface{}) []string {
+	var names []string
+
+	primary, ok := icons["CFBundlePrimaryIcon"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// CFBundleIconFiles array (e.g., ["AppIcon60x60", "AppIcon76x76"])
+	if iconFiles, ok := primary["CFBundleIconFiles"].([]interface{}); ok {
+		for _, f := range iconFiles {
+			if s, ok := f.(string); ok && s != "" {
+				names = append(names, s)
+			}
+		}
+	}
+
+	// CFBundleIconName string (e.g., "AppIcon")
+	if iconName, ok := primary["CFBundleIconName"].(string); ok && iconName != "" {
+		names = append(names, iconName)
+	}
+
+	return names
+}
+
+// deduplicateStrings returns a new slice with duplicates removed, preserving order.
+func deduplicateStrings(input []string) []string {
+	if len(input) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(input))
+	result := make([]string, 0, len(input))
+	for _, s := range input {
+		if _, exists := seen[s]; !exists {
+			seen[s] = struct{}{}
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 // getDirectorySize calculates the total size of a directory.
