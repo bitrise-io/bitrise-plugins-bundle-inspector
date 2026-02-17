@@ -435,6 +435,19 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
 }
 
+func TestNewRuleRegistryWithConfig_NoSmallDuplicates(t *testing.T) {
+	config := RuleConfig{FilterSmallDuplicates: false}
+	registry := NewRuleRegistryWithConfig(config)
+
+	rules := registry.GetRules()
+	require.Equal(t, 11, len(rules), "Should have 11 rules when SmallDuplicates is disabled")
+
+	// Verify small duplicates rule is NOT registered
+	for _, rule := range rules {
+		assert.NotEqual(t, "rule-10-small-duplicates", rule.ID(), "SmallDuplicatesRule should not be registered")
+	}
+}
+
 func TestLocalizationRule(t *testing.T) {
 	rule := NewLocalizationRule()
 
@@ -1300,6 +1313,27 @@ func TestSmallDuplicatesRule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSmallDuplicatesRule_DisabledByConfig(t *testing.T) {
+	// With FilterSmallDuplicates disabled, small files should pass through
+	config := RuleConfig{FilterSmallDuplicates: false}
+	categorizer := NewDuplicateCategorizerWithConfig(config)
+
+	duplicates := []types.DuplicateSet{
+		{
+			Files: []string{
+				"Payload/App.app/tiny.plist",
+				"Payload/App.app/Resources/tiny.plist",
+			},
+			Count: 2,
+			Size:  100, // Below 4KB
+		},
+	}
+
+	actionable, filtered := categorizer.FilterDuplicates(duplicates)
+	assert.Equal(t, 1, len(actionable), "Small file should be actionable when filter is disabled")
+	assert.Equal(t, 0, len(filtered), "Nothing should be filtered")
 }
 
 func TestSmallDuplicatesRule_Integration(t *testing.T) {

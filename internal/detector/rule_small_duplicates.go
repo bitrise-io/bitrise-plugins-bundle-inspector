@@ -4,10 +4,10 @@ import (
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
-// MaxSmallFileSize is the filesystem block size threshold (4KB).
+// maxSmallFileSize is the filesystem block size threshold (4KB).
 // Files at or below this size occupy a single block on disk regardless of actual content size,
 // making duplicate detection savings negligible or zero.
-const MaxSmallFileSize = 4096
+const maxSmallFileSize = 4096
 
 // SmallDuplicatesRule filters duplicate sets where the file size is at or below the filesystem block size.
 // These duplicates have negligible actual disk savings since each file occupies one block regardless.
@@ -34,7 +34,7 @@ func (r *SmallDuplicatesRule) Evaluate(dup types.DuplicateSet) FilterResult {
 		return FilterResult{ShouldFilter: false}
 	}
 
-	if dup.Size <= MaxSmallFileSize {
+	if dup.Size <= maxSmallFileSize {
 		return FilterResult{
 			ShouldFilter: true,
 			Reason:       "Files at or below filesystem block size (4KB) have negligible duplicate savings",

@@ -8,12 +8,16 @@ import (
 )
 
 // deviceIdiomSuffixes are the known iOS device idiom suffixes used in asset catalog virtual paths.
+// These follow Apple's naming convention: ~<idiom> where idiom identifies the device class.
 var deviceIdiomSuffixes = []string{
 	"~iphone",
 	"~ipad",
 	"~phone",
 	"~pad",
 }
+
+// scaleSuffixes are the known iOS asset scale factor suffixes.
+var scaleSuffixes = []string{"@2x", "@3x", "@1x"}
 
 // DeviceVariantRule filters duplicate sets that are device-specific variants of the same asset.
 // iOS asset catalogs compile images for different device idioms (phone/pad) which may have
@@ -68,7 +72,6 @@ func (r *DeviceVariantRule) Evaluate(dup types.DuplicateSet) FilterResult {
 		nameWithoutExt := strings.TrimSuffix(base, ext)
 
 		// Strip scale suffix (@2x, @3x)
-		scaleSuffixes := []string{"@2x", "@3x", "@1x"}
 		for _, s := range scaleSuffixes {
 			nameWithoutExt = strings.TrimSuffix(nameWithoutExt, s)
 		}

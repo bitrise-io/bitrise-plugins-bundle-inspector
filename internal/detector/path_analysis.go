@@ -7,8 +7,10 @@ import (
 )
 
 // localeDirectoryPattern matches locale directory segments like "es_419", "zh-CN_ALL", "he_ALL", "en_US".
-// Pattern: 2-letter language code, optionally followed by dash/underscore + alphanumeric segments.
-var localeDirectoryPattern = regexp.MustCompile(`^[a-z]{2}(?:[_-][A-Za-z0-9]+)+$`)
+// Pattern: 2-letter lowercase language code followed by one or more segments of separator (_/-)
+// plus either an uppercase country/script code (2-4 chars) or a 3-digit numeric region code.
+// This avoids false positives on generic directory names like "my_module" or "go_test".
+var localeDirectoryPattern = regexp.MustCompile(`^[a-z]{2}(?:[_-](?:[A-Z]{2,4}|[0-9]{3}))+$`)
 
 // PathAnalyzer provides utilities for analyzing iOS/Android artifact paths
 type PathAnalyzer struct {

@@ -16,6 +16,13 @@ func NewDuplicateCategorizer() *DuplicateCategorizer {
 	}
 }
 
+// NewDuplicateCategorizerWithConfig creates a new duplicate categorizer with the given config
+func NewDuplicateCategorizerWithConfig(config RuleConfig) *DuplicateCategorizer {
+	return &DuplicateCategorizer{
+		registry: NewRuleRegistryWithConfig(config),
+	}
+}
+
 // EvaluateDuplicate evaluates a single duplicate set against all rules
 // Returns a FilterResult indicating if it should be filtered out or shown to user
 func (c *DuplicateCategorizer) EvaluateDuplicate(dup types.DuplicateSet) FilterResult {

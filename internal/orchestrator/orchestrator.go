@@ -18,15 +18,17 @@ import (
 
 // Orchestrator coordinates the analysis workflow
 type Orchestrator struct {
-	IncludeDuplicates bool
-	Logger            logger.Logger
+	IncludeDuplicates     bool
+	FilterSmallDuplicates bool
+	Logger                logger.Logger
 }
 
 // New creates a new orchestrator with default settings
 func New() *Orchestrator {
 	return &Orchestrator{
-		IncludeDuplicates: true,
-		Logger:            logger.NewDefaultLogger(os.Stderr, logger.LevelInfo),
+		IncludeDuplicates:     true,
+		FilterSmallDuplicates: true,
+		Logger:                logger.NewDefaultLogger(os.Stderr, logger.LevelInfo),
 	}
 }
 
@@ -94,7 +96,7 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 	}
 
 	// Filter duplicates to only actionable ones
-	categorizer := detector.NewDuplicateCategorizer()
+	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig())
 	actionable, _ := categorizer.FilterDuplicates(report.Duplicates)
 	report.Duplicates = actionable
 
@@ -149,6 +151,13 @@ func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath 
 	}
 }
 
+// ruleConfig returns the detector rule configuration based on orchestrator settings.
+func (o *Orchestrator) ruleConfig() detector.RuleConfig {
+	return detector.RuleConfig{
+		FilterSmallDuplicates: o.FilterSmallDuplicates,
+	}
+}
+
 // isIOSArtifact checks if the artifact is an iOS artifact
 func (o *Orchestrator) isIOSArtifact(artifactType types.ArtifactType) bool {
 	return artifactType == types.ArtifactTypeIPA ||
@@ -163,7 +172,7 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 	optimizations := report.Optimizations
 
 	// Create duplicate categorizer to get priority info for each actionable duplicate
-	categorizer := detector.NewDuplicateCategorizer()
+	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig())
 
 	// Add duplicate file optimizations (already filtered to actionable only)
 	for _, dup := range report.Duplicates {

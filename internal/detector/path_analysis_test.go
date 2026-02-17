@@ -539,6 +539,24 @@ func TestPathAnalyzer_ExtractLocaleDirectory(t *testing.T) {
 			wantLocale: "",
 			wantFound:  false,
 		},
+		{
+			name:       "my_module is not a locale directory",
+			path:       "Payload/App.app/my_module/data.bin",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "go_test is not a locale directory",
+			path:       "Payload/App.app/go_test/file.go",
+			wantLocale: "",
+			wantFound:  false,
+		},
+		{
+			name:       "lib_utils is not a locale directory",
+			path:       "Payload/App.app/lib_utils/helper.so",
+			wantLocale: "",
+			wantFound:  false,
+		},
 	}
 
 	for _, tt := range tests {
