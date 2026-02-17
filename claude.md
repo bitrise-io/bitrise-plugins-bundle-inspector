@@ -292,6 +292,12 @@ go build -o bundle-inspector ./cmd/bundle-inspector
 - **Mach-O Parsing**: Detects architecture (arm64, x86_64), linked libraries, code/data sizes
 - **Framework Discovery**: Reads Info.plist, analyzes dependencies, detects unused frameworks
 - **Assets.car**: Extracts assets, categorizes by type (@1x, @2x, @3x) and format
+- **Icon Extraction**: Multi-strategy approach with three tiers:
+  1. **Info.plist-guided**: Reads `CFBundleIcons > CFBundlePrimaryIcon > CFBundleIconFiles` to get actual icon base names (handles custom names like Facebook's "Icon-Production", Telegram's "Telegram")
+  2. **AppIcon prefix**: Fallback to standard `AppIcon*.png` matching
+  3. **Broad heuristic**: Any PNG containing "icon" in the name
+  4. **Assets.car fallback** (darwin-only): When no loose icon PNGs are found, extracts icons from compiled asset catalogs using a Swift helper script via NSBundle public APIs
+  - Key files: `internal/util/icon.go` (search strategies), `internal/analyzer/ios/assets/icon_extractor.go` (darwin .car extraction), `internal/analyzer/ios/framework.go` (`extractIconNames` from Info.plist)
 
 ### Android Analysis
 - **APK**: ZIP-based analysis, DEX class-level parsing, native library detection

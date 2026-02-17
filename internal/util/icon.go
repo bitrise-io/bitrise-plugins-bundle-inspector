@@ -14,14 +14,25 @@ import (
 	"strings"
 
 	_ "image/jpeg" // Register JPEG decoder
-	_ "image/png"  // Register PNG decoder
 
 	"github.com/andrianbdn/iospng"
 )
 
+// IconSearchHints provides context from Info.plist to guide icon extraction.
+type IconSearchHints struct {
+	// PlistIconNames are base names from CFBundleIcons/CFBundleIconFiles
+	// e.g., ["AppIcon60x60", "Icon-Production", "Telegram"]
+	PlistIconNames []string
+}
+
 // ExtractIconFromZip extracts the app icon from a ZIP archive (IPA, APK, AAB)
 // Returns base64-encoded data URI (e.g., "data:image/png;base64,...")
 func ExtractIconFromZip(zipPath string, artifactType string) (string, error) {
+	return ExtractIconFromZipWithHints(zipPath, artifactType, nil)
+}
+
+// ExtractIconFromZipWithHints extracts the app icon using Info.plist hints for better matching.
+func ExtractIconFromZipWithHints(zipPath string, artifactType string, hints *IconSearchHints) (string, error) {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open archive: %w", err)
@@ -31,7 +42,7 @@ func ExtractIconFromZip(zipPath string, artifactType string) (string, error) {
 	var iconData []byte
 	switch artifactType {
 	case "ipa", "app":
-		iconData, err = extractIOSIcon(r)
+		iconData, err = extractIOSIconWithHints(r, hints)
 	case "apk", "aab":
 		iconData, err = extractAndroidIcon(r)
 	default:
@@ -54,77 +65,169 @@ func ExtractIconFromZip(zipPath string, artifactType string) (string, error) {
 // ExtractIconFromDirectory extracts the app icon from a directory (.app bundle)
 // Returns base64-encoded data URI (e.g., "data:image/png;base64,...")
 func ExtractIconFromDirectory(dirPath string) (string, error) {
-	// Look for AppIcon files
-	iconNames := []string{
-		"AppIcon60x60@3x.png",
-		"AppIcon60x60@2x.png",
-		"AppIcon76x76@2x~ipad.png",
-		"AppIcon60x60@1x.png",
+	return ExtractIconFromDirectoryWithHints(dirPath, nil)
+}
+
+// ExtractIconFromDirectoryWithHints extracts the app icon using Info.plist hints for better matching.
+func ExtractIconFromDirectoryWithHints(dirPath string, hints *IconSearchHints) (string, error) {
+	type candidate struct {
+		path     string
+		priority int
 	}
 
-	for _, iconName := range iconNames {
-		iconPath := filepath.Join(dirPath, iconName)
-		if data, err := os.ReadFile(iconPath); err == nil {
-			// Check if it's a CgBI PNG and convert if needed
-			if isCgBIPNG(data) {
-				data, err = convertCgBIToStandardPNG(data)
-				if err != nil {
-					continue
-				}
-			}
+	var candidates []candidate
+	seen := make(map[string]struct{})
 
-			// Convert to PNG if needed and encode
-			img, _, err := image.Decode(bytes.NewReader(data))
+	// Strategy 1: Info.plist-guided search (highest priority)
+	if hints != nil {
+		for _, baseName := range hints.PlistIconNames {
+			matches, _ := filepath.Glob(filepath.Join(dirPath, baseName+"*.png"))
+			for _, m := range matches {
+				seen[m] = struct{}{}
+				candidates = append(candidates, candidate{
+					path:     m,
+					priority: getIconPriority(filepath.Base(m)) + 50,
+				})
+			}
+		}
+	}
+
+	// Strategy 2: AppIcon prefix (skip files already found by Strategy 1)
+	matches, _ := filepath.Glob(filepath.Join(dirPath, "AppIcon*.png"))
+	for _, m := range matches {
+		if _, exists := seen[m]; exists {
+			continue
+		}
+		seen[m] = struct{}{}
+		candidates = append(candidates, candidate{
+			path:     m,
+			priority: getIconPriority(filepath.Base(m)),
+		})
+	}
+
+	// Strategy 3: Broad heuristic — any PNG containing "icon" (case-insensitive)
+	if len(candidates) == 0 {
+		allPNGs, _ := filepath.Glob(filepath.Join(dirPath, "*.png"))
+		for _, m := range allPNGs {
+			name := filepath.Base(m)
+			if strings.Contains(strings.ToLower(name), "icon") {
+				candidates = append(candidates, candidate{
+					path:     m,
+					priority: 1,
+				})
+			}
+		}
+	}
+
+	// Sort by priority (higher first)
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].priority > candidates[j].priority
+	})
+
+	// Try to extract the best candidate
+	for _, c := range candidates {
+		data, err := os.ReadFile(c.path)
+		if err != nil {
+			continue
+		}
+
+		if isCgBIPNG(data) {
+			data, err = convertCgBIToStandardPNG(data)
 			if err != nil {
 				continue
 			}
-
-			var buf bytes.Buffer
-			if err := png.Encode(&buf, img); err != nil {
-				continue
-			}
-
-			encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
-			return fmt.Sprintf("data:image/png;base64,%s", encoded), nil
 		}
+
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			continue
+		}
+
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			continue
+		}
+
+		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+		return fmt.Sprintf("data:image/png;base64,%s", encoded), nil
 	}
 
 	return "", fmt.Errorf("no icon found in directory")
 }
 
-// extractIOSIcon extracts icon from iOS IPA
-func extractIOSIcon(r *zip.ReadCloser) ([]byte, error) {
-	// Look for AppIcon files in Payload/*.app/
-	// Priority: AppIcon60x60@3x.png > AppIcon60x60@2x.png > AppIcon*.png
-
-	var candidates []struct {
+// extractIOSIconWithHints extracts icon from iOS IPA using a multi-strategy approach:
+//  1. Info.plist-guided: match PNGs whose name starts with a declared icon base name (+50 priority bonus)
+//  2. AppIcon prefix: existing behavior for apps using standard naming
+//  3. Broad heuristic: any PNG in .app root containing "icon" (lowest priority)
+func extractIOSIconWithHints(r *zip.ReadCloser, hints *IconSearchHints) ([]byte, error) {
+	type candidate struct {
 		file     *zip.File
 		priority int
 		size     int
 	}
 
+	var candidates []candidate
+	var heuristicCandidates []candidate
+
 	for _, file := range r.File {
 		name := filepath.Base(file.Name)
 		dir := filepath.Dir(file.Name)
 
-		// Check if it's in the .app directory
-		if !strings.Contains(dir, ".app") {
+		// Must be in a .app directory and be a PNG
+		if !strings.Contains(dir, ".app") || !strings.HasSuffix(strings.ToLower(name), ".png") {
 			continue
 		}
 
-		// Look for AppIcon files
-		if strings.HasPrefix(name, "AppIcon") && strings.HasSuffix(name, ".png") {
-			priority := getIconPriority(name)
-			candidates = append(candidates, struct {
-				file     *zip.File
-				priority int
-				size     int
-			}{
+		// Skip files deep inside Frameworks/ or PlugIns/ subdirectories
+		if strings.Contains(dir, "/Frameworks/") || strings.Contains(dir, "/PlugIns/") {
+			continue
+		}
+
+		matched := false
+		baseName := strings.TrimSuffix(name, filepath.Ext(name))
+
+		// Strategy 1: Info.plist-guided search
+		if hints != nil {
+			for _, plistName := range hints.PlistIconNames {
+				if strings.HasPrefix(baseName, plistName) {
+					candidates = append(candidates, candidate{
+						file:     file,
+						priority: getIconPriority(name) + 50,
+						size:     int(file.UncompressedSize64),
+					})
+					matched = true
+					break
+				}
+			}
+		}
+
+		if matched {
+			continue
+		}
+
+		// Strategy 2: AppIcon prefix (current behavior)
+		if strings.HasPrefix(name, "AppIcon") {
+			candidates = append(candidates, candidate{
 				file:     file,
-				priority: priority,
+				priority: getIconPriority(name),
+				size:     int(file.UncompressedSize64),
+			})
+			continue
+		}
+
+		// Strategy 3: Broad heuristic — collect separately, only use if 1+2 find nothing
+		if strings.Contains(strings.ToLower(name), "icon") {
+			heuristicCandidates = append(heuristicCandidates, candidate{
+				file:     file,
+				priority: 1,
 				size:     int(file.UncompressedSize64),
 			})
 		}
+	}
+
+	// Only fall back to heuristic candidates if strategies 1+2 found nothing
+	if len(candidates) == 0 {
+		candidates = heuristicCandidates
 	}
 
 	// Sort by priority (higher first), then by size (larger first)
@@ -136,8 +239,8 @@ func extractIOSIcon(r *zip.ReadCloser) ([]byte, error) {
 	})
 
 	// Try to extract the best candidate
-	for _, candidate := range candidates {
-		data, err := extractAndConvertIcon(candidate.file)
+	for _, c := range candidates {
+		data, err := extractAndConvertIcon(c.file)
 		if err == nil && len(data) > 0 {
 			return data, nil
 		}

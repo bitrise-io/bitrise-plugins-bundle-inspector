@@ -128,10 +128,23 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromDirectory(path)
-	if err != nil {
-		a.Logger.Warn("Failed to extract icon: %v", err)
+	// Extract app icon with Info.plist-guided search
+	var iconHints *util.IconSearchHints
+	if appMetadata != nil && len(appMetadata.IconNames) > 0 {
+		iconHints = &util.IconSearchHints{PlistIconNames: appMetadata.IconNames}
+	}
+	iconData, err := util.ExtractIconFromDirectoryWithHints(path, iconHints)
+	if err == nil && iconData != "" {
+		a.Logger.Info("Icon extracted from loose file in bundle")
+	} else {
+		if err != nil {
+			a.Logger.Debug("Loose icon extraction failed: %v, trying Assets.car fallback", err)
+		}
+		// Fallback: try extracting icon from Assets.car
+		if carIcon := tryExtractIconFromAssetsCar(ctx, path, appMetadata, assetCatalogs); carIcon != "" {
+			iconData = carIcon
+			a.Logger.Info("Icon extracted from Assets.car")
+		}
 		// Continue without icon - it's not critical
 	}
 

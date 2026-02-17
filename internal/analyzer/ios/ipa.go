@@ -3,6 +3,7 @@ package ios
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -197,10 +198,23 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		}
 	}
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromZip(path, "ipa")
-	if err != nil {
-		a.Logger.Warn("Failed to extract icon: %v", err)
+	// Extract app icon with Info.plist-guided search
+	var iconHints *util.IconSearchHints
+	if analysis.appMetadata != nil && len(analysis.appMetadata.IconNames) > 0 {
+		iconHints = &util.IconSearchHints{PlistIconNames: analysis.appMetadata.IconNames}
+	}
+	iconData, err := util.ExtractIconFromZipWithHints(path, "ipa", iconHints)
+	if err == nil && iconData != "" {
+		a.Logger.Info("Icon extracted from loose file in archive")
+	} else {
+		if err != nil {
+			a.Logger.Debug("Loose icon extraction failed: %v, trying Assets.car fallback", err)
+		}
+		// Fallback: try extracting icon from Assets.car
+		if carIcon := tryExtractIconFromAssetsCar(ctx, appBundlePath, analysis.appMetadata, analysis.assetCatalogs); carIcon != "" {
+			iconData = carIcon
+			a.Logger.Info("Icon extracted from Assets.car")
+		}
 		// Continue without icon - it's not critical
 	}
 
@@ -647,4 +661,31 @@ func generateStripSymbolsOptimizations(binaries map[string]*types.BinaryInfo) []
 	})
 
 	return optimizations
+}
+
+// tryExtractIconFromAssetsCar attempts to extract an app icon from an Assets.car file.
+// Returns a base64 data URI string, or empty string if extraction fails.
+func tryExtractIconFromAssetsCar(ctx context.Context, appBundlePath string, appMetadata *AppMetadata, assetCatalogs []*assets.AssetCatalogInfo) string {
+	carPath := filepath.Join(appBundlePath, "Assets.car")
+	if _, err := os.Stat(carPath); err != nil {
+		return ""
+	}
+
+	var iconNames []string
+	if appMetadata != nil {
+		iconNames = appMetadata.IconNames
+	}
+
+	var catalogAssets []assets.AssetInfo
+	for _, cat := range assetCatalogs {
+		catalogAssets = append(catalogAssets, cat.Assets...)
+	}
+
+	carIcon, err := assets.ExtractIconFromCar(ctx, carPath, iconNames, catalogAssets)
+	if err != nil || len(carIcon) == 0 {
+		return ""
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(carIcon)
+	return fmt.Sprintf("data:image/png;base64,%s", encoded)
 }
