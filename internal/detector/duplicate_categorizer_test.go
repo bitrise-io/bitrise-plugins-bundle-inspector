@@ -344,6 +344,7 @@ func TestRuleRegistry_Evaluate(t *testing.T) {
 					"Payload/App.app/Resources/data.txt",
 				},
 				Count: 2,
+				Size:  10240, // Above block size threshold
 			},
 			wantShouldFilter: false,
 			wantRuleID:       "default",
@@ -410,9 +411,9 @@ func TestRuleRegistry_Register(t *testing.T) {
 func TestNewRuleRegistry(t *testing.T) {
 	registry := NewRuleRegistry()
 
-	// Should have 9 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, PR 3: Rules 8-9)
+	// Should have 10 default rules (PR 1: Rules 1-3, PR 2: Rules 4-7, new filtering rules, PR 3: Rules 8-9)
 	rules := registry.GetRules()
-	require.Equal(t, 9, len(rules), "Should have 9 default rules")
+	require.Equal(t, 10, len(rules), "Should have 10 default rules")
 
 	// Verify rule IDs
 	ruleIDs := make(map[string]bool)
@@ -427,6 +428,7 @@ func TestNewRuleRegistry(t *testing.T) {
 	assert.True(t, ruleIDs["rule-5-framework-scripts"], "Should have Framework scripts rule")
 	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have Framework metadata rule")
 	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have Third-party SDK rule")
+	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have Small duplicates rule")
 	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have Extension duplication rule")
 	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have Asset duplication rule")
 }
@@ -947,6 +949,120 @@ func TestAssetDuplicationRule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSmallDuplicatesRule(t *testing.T) {
+	rule := NewSmallDuplicatesRule()
+
+	tests := []struct {
+		name             string
+		files            []string
+		size             int64
+		wantShouldFilter bool
+	}{
+		{
+			name: "Files at block size (4096) - should filter",
+			files: []string{
+				"Payload/App.app/en.lproj/AppAccessibility.strings",
+				"Payload/App.app/de.lproj/AppAccessibility.strings",
+			},
+			size:             4096,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Tiny files (100 bytes) - should filter",
+			files: []string{
+				"Payload/App.app/metadata.plist",
+				"Payload/App.app/Frameworks/SDK.framework/metadata.plist",
+			},
+			size:             100,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Zero size files - should filter",
+			files: []string{
+				"Payload/App.app/.gitkeep",
+				"Payload/App.app/Resources/.gitkeep",
+			},
+			size:             0,
+			wantShouldFilter: true,
+		},
+		{
+			name: "Files just above block size (4097) - should NOT filter",
+			files: []string{
+				"Payload/App.app/icon.png",
+				"Payload/App.app/Resources/icon.png",
+			},
+			size:             4097,
+			wantShouldFilter: false,
+		},
+		{
+			name: "Large files - should NOT filter",
+			files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			size:             102400,
+			wantShouldFilter: false,
+		},
+		{
+			name: "Single file - should NOT filter",
+			files: []string{
+				"Payload/App.app/tiny.plist",
+			},
+			size:             100,
+			wantShouldFilter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dup := types.DuplicateSet{
+				Files: tt.files,
+				Count: len(tt.files),
+				Size:  tt.size,
+			}
+
+			result := rule.Evaluate(dup)
+			assert.Equal(t, tt.wantShouldFilter, result.ShouldFilter, "ShouldFilter mismatch")
+			if tt.wantShouldFilter {
+				assert.Equal(t, rule.ID(), result.RuleID, "RuleID mismatch")
+			}
+		})
+	}
+}
+
+func TestSmallDuplicatesRule_Integration(t *testing.T) {
+	categorizer := NewDuplicateCategorizer()
+
+	duplicates := []types.DuplicateSet{
+		{
+			// Small file - should be filtered
+			Files: []string{
+				"Payload/App.app/en.lproj/Accessibility.strings",
+				"Payload/App.app/de.lproj/Accessibility.strings",
+			},
+			Count: 2,
+			Size:  256,
+		},
+		{
+			// Large file - should be actionable
+			Files: []string{
+				"Payload/App.app/logo.png",
+				"Payload/App.app/Resources/logo.png",
+			},
+			Count: 2,
+			Size:  102400,
+		},
+	}
+
+	actionable, filtered := categorizer.FilterDuplicates(duplicates)
+
+	assert.Equal(t, 1, len(actionable), "Expected 1 actionable duplicate")
+	assert.Contains(t, actionable[0].Files[0], "logo.png")
+
+	// Small file should be filtered (either by localization rule or small duplicates rule)
+	assert.Equal(t, 1, len(filtered), "Expected 1 filtered duplicate")
 }
 
 func TestPriorityCalculation(t *testing.T) {
