@@ -33,7 +33,8 @@ func TestExtractIconFromCar_EmptyCandidates(t *testing.T) {
 
 	_, err = ExtractIconFromCar(tmpFile.Name(), nil, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no icon found")
+	// With nil iconNames and nil catalogAssets, only fallback names are tried
+	assert.Contains(t, err.Error(), "swift icon extraction failed")
 }
 
 func TestExtractIconFromCar_WithCatalogAssets(t *testing.T) {
@@ -57,8 +58,8 @@ func TestExtractIconFromCar_WithCatalogAssets(t *testing.T) {
 
 	_, err = ExtractIconFromCar(tmpFile.Name(), []string{"PlistIcon"}, catalogAssets)
 	assert.Error(t, err)
-	// Should have tried: PlistIcon, CustomIcon, AnotherIcon, AppIcon, app_icon, Icon
-	assert.Contains(t, err.Error(), "tried 6 names")
+	// All 6 candidates are passed to a single Swift invocation
+	assert.Contains(t, err.Error(), "swift icon extraction failed")
 }
 
 func TestExtractIconFromCar_Wikipedia(t *testing.T) {

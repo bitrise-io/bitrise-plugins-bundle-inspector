@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	_ "image/jpeg" // Register JPEG decoder
-	_ "image/png"  // Register PNG decoder
 
 	"github.com/andrianbdn/iospng"
 )
@@ -150,11 +149,6 @@ func ExtractIconFromDirectoryWithHints(dirPath string, hints *IconSearchHints) (
 	return "", fmt.Errorf("no icon found in directory")
 }
 
-// extractIOSIcon extracts icon from iOS IPA (backward-compatible wrapper).
-func extractIOSIcon(r *zip.ReadCloser) ([]byte, error) {
-	return extractIOSIconWithHints(r, nil)
-}
-
 // extractIOSIconWithHints extracts icon from iOS IPA using a multi-strategy approach:
 //  1. Info.plist-guided: match PNGs whose name starts with a declared icon base name (+50 priority bonus)
 //  2. AppIcon prefix: existing behavior for apps using standard naming
@@ -167,6 +161,7 @@ func extractIOSIconWithHints(r *zip.ReadCloser, hints *IconSearchHints) ([]byte,
 	}
 
 	var candidates []candidate
+	var heuristicCandidates []candidate
 
 	for _, file := range r.File {
 		name := filepath.Base(file.Name)
@@ -214,14 +209,19 @@ func extractIOSIconWithHints(r *zip.ReadCloser, hints *IconSearchHints) ([]byte,
 			continue
 		}
 
-		// Strategy 3: Broad heuristic — any PNG containing "icon" in name
+		// Strategy 3: Broad heuristic — collect separately, only use if 1+2 find nothing
 		if strings.Contains(strings.ToLower(name), "icon") {
-			candidates = append(candidates, candidate{
+			heuristicCandidates = append(heuristicCandidates, candidate{
 				file:     file,
 				priority: 1,
 				size:     int(file.UncompressedSize64),
 			})
 		}
+	}
+
+	// Only fall back to heuristic candidates if strategies 1+2 found nothing
+	if len(candidates) == 0 {
+		candidates = heuristicCandidates
 	}
 
 	// Sort by priority (higher first), then by size (larger first)

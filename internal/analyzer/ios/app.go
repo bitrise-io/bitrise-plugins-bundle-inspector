@@ -2,13 +2,10 @@ package ios
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
@@ -141,21 +138,9 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		a.Logger.Info("Icon extracted from loose file in bundle")
 	} else {
 		// Fallback: try extracting icon from Assets.car
-		carPath := filepath.Join(path, "Assets.car")
-		if _, statErr := os.Stat(carPath); statErr == nil {
-			iconNames := []string{"AppIcon"}
-			if appMetadata != nil && len(appMetadata.IconNames) > 0 {
-				iconNames = appMetadata.IconNames
-			}
-			var catalogAssets []assets.AssetInfo
-			for _, cat := range assetCatalogs {
-				catalogAssets = append(catalogAssets, cat.Assets...)
-			}
-			if carIcon, carErr := assets.ExtractIconFromCar(carPath, iconNames, catalogAssets); carErr == nil {
-				encoded := base64.StdEncoding.EncodeToString(carIcon)
-				iconData = fmt.Sprintf("data:image/png;base64,%s", encoded)
-				a.Logger.Info("Icon extracted from Assets.car")
-			}
+		if carIcon := tryExtractIconFromAssetsCar(path, appMetadata, assetCatalogs); carIcon != "" {
+			iconData = carIcon
+			a.Logger.Info("Icon extracted from Assets.car")
 		}
 		// Continue without icon - it's not critical
 	}
