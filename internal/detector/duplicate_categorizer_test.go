@@ -491,6 +491,55 @@ func TestLocalizationRule(t *testing.T) {
 			},
 			wantShouldFilter: false,
 		},
+		{
+			name: "Spanish locale variants - should filter",
+			files: []string{
+				"Payload/App.app/Resources/es_419/messages.offline_catalog",
+				"Payload/App.app/Resources/es_AR/messages.offline_catalog",
+				"Payload/App.app/Resources/es_MX/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Hebrew legacy code alias - should filter",
+			files: []string{
+				"Payload/App.app/Resources/he_ALL/messages.offline_catalog",
+				"Payload/App.app/Resources/iw_ALL/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Chinese locale variants - should filter",
+			files: []string{
+				"Payload/App.app/Resources/zh-CN_ALL/messages.offline_catalog",
+				"Payload/App.app/Resources/zh_ALL/messages.offline_catalog",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Locale variant with non-localization file type - should filter",
+			files: []string{
+				"Payload/App.app/Resources/en_US/data.bin",
+				"Payload/App.app/Resources/fr_FR/data.bin",
+			},
+			wantShouldFilter: true,
+		},
+		{
+			name: "Different files in same locale dir - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/es_419/messages.offline_catalog",
+				"Payload/App.app/Resources/es_419/other.catalog",
+			},
+			wantShouldFilter: false,
+		},
+		{
+			name: "Files without locale directories - should NOT filter",
+			files: []string{
+				"Payload/App.app/Resources/data.bin",
+				"Payload/App.app/Other/data.bin",
+			},
+			wantShouldFilter: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -498,7 +547,7 @@ func TestLocalizationRule(t *testing.T) {
 			dup := types.DuplicateSet{
 				Files: tt.files,
 				Count: len(tt.files),
-				Size:  2048,
+				Size:  86000,
 			}
 
 			result := rule.Evaluate(dup)
