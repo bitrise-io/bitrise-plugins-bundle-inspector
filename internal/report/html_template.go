@@ -95,6 +95,7 @@ const htmlTemplate = `<!DOCTYPE html>
             --color-resource: #64d2ff;           /* Light Blue (unchanged) */
             --color-ui: #bf5af2;                 /* Magenta (unchanged) */
             --color-dex: #ac8e68;                /* Brown (unchanged) */
+            --color-javascript: #f0db4f;         /* JS Yellow */
             --color-font: #6a097d;               /* Purple (NEW - fixes bug) */
             --color-video: #0e49b5;              /* Dark Blue (NEW) */
             --color-audio: #ff6b35;              /* Coral (NEW) */
@@ -1138,6 +1139,7 @@ const htmlTemplate = `<!DOCTYPE html>
                 'resource': getCSSVariable('--color-resource'),
                 'ui': getCSSVariable('--color-ui'),
                 'dex': getCSSVariable('--color-dex'),
+                'javascript': getCSSVariable('--color-javascript'),
                 'font': getCSSVariable('--color-font'),
                 'video': getCSSVariable('--color-video'),
                 'audio': getCSSVariable('--color-audio'),

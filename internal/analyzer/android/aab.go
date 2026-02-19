@@ -73,6 +73,9 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Detect modules (after DEX replacement)
 	modules := detectModules(fileTree)
 
+	// Detect JS bundle format for React Native apps
+	jsBundleInfo := detectJSBundleInZip(path, fileTree)
+
 	// Create size breakdown (after DEX replacement)
 	sizeBreakdown := categorizeAABSizes(fileTree)
 
@@ -111,6 +114,11 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 	// Merge manifest data into metadata
 	for k, v := range manifest {
+		metadata[k] = v
+	}
+
+	// Add JS bundle info to metadata if detected (React Native)
+	for k, v := range jsBundleInfo {
 		metadata[k] = v
 	}
 
@@ -238,8 +246,20 @@ func categorizeAABDirectory(node *types.FileNode, breakdown *types.SizeBreakdown
 		breakdown.ByCategory["Resources"] += node.Size
 		return true
 	case "assets":
-		breakdown.Assets += node.Size
-		breakdown.ByCategory["Assets"] += node.Size
+		// Check for JS bundles inside assets (React Native)
+		jsSize := collectJSBundleSize(node.Children)
+		if jsSize > 0 {
+			breakdown.JavaScript += jsSize
+			breakdown.ByCategory["JavaScript"] += jsSize
+			nonJS := node.Size - jsSize
+			if nonJS > 0 {
+				breakdown.Assets += nonJS
+				breakdown.ByCategory["Assets"] += nonJS
+			}
+		} else {
+			breakdown.Assets += node.Size
+			breakdown.ByCategory["Assets"] += node.Size
+		}
 		return true
 	case "dex":
 		breakdown.DEX += node.Size
