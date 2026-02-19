@@ -316,6 +316,51 @@ func TestCategorizeAPKSizes(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "assets with JS bundle (React Native)",
+			fileTree: []*types.FileNode{
+				{
+					Name:  "assets",
+					Size:  5000,
+					IsDir: true,
+					Children: []*types.FileNode{
+						{Name: "index.android.bundle", Size: 4000, IsDir: false},
+						{Name: "data.json", Size: 1000, IsDir: false},
+					},
+				},
+			},
+			wantCheck: func(breakdown types.SizeBreakdown) error {
+				if breakdown.JavaScript != 4000 {
+					t.Errorf("JavaScript = %d, want 4000", breakdown.JavaScript)
+				}
+				if breakdown.Assets != 1000 {
+					t.Errorf("Assets = %d, want 1000", breakdown.Assets)
+				}
+				return nil
+			},
+		},
+		{
+			name: "assets without JS bundle (non-RN app)",
+			fileTree: []*types.FileNode{
+				{
+					Name:  "assets",
+					Size:  1500,
+					IsDir: true,
+					Children: []*types.FileNode{
+						{Name: "data.json", Size: 1500, IsDir: false},
+					},
+				},
+			},
+			wantCheck: func(breakdown types.SizeBreakdown) error {
+				if breakdown.JavaScript != 0 {
+					t.Errorf("JavaScript = %d, want 0", breakdown.JavaScript)
+				}
+				if breakdown.Assets != 1500 {
+					t.Errorf("Assets = %d, want 1500", breakdown.Assets)
+				}
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {

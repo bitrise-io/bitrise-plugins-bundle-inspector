@@ -340,6 +340,11 @@ func (f *HTMLFormatter) getFileType(filename string, path string) string {
 		return "localization"
 	}
 
+	// Check for JS bundle files (React Native)
+	if strings.HasSuffix(lowerName, ".jsbundle") || lowerName == "index.android.bundle" {
+		return "javascript"
+	}
+
 	typeMap := map[string]string{
 		// Libraries
 		".dylib": "library",
@@ -421,6 +426,7 @@ func (f *HTMLFormatter) prepareCategoryData(breakdown *types.SizeBreakdown) []ca
 		{"Assets", breakdown.Assets},
 		{"Libraries", breakdown.Libraries},
 		{"DEX", breakdown.DEX},
+		{"JavaScript", breakdown.JavaScript},
 		{"Other", breakdown.Other},
 	}
 

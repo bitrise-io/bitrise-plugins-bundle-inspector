@@ -61,6 +61,13 @@ func (f *TextFormatter) Format(w io.Writer, report *types.Report) error {
 		}{"DEX Files", report.SizeBreakdown.DEX})
 	}
 
+	if report.SizeBreakdown.JavaScript > 0 {
+		breakdown = append(breakdown, struct {
+			name string
+			size int64
+		}{"JavaScript", report.SizeBreakdown.JavaScript})
+	}
+
 	breakdown = append(breakdown, struct {
 		name string
 		size int64

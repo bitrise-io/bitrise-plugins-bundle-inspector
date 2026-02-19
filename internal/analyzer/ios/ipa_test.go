@@ -84,6 +84,55 @@ func TestFindMainBinary_IgnoresMetadataFiles(t *testing.T) {
 	}
 }
 
+func TestCategorizeSizes_JSBundle(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodes          []*types.FileNode
+		wantJavaScript int64
+		wantAssets     int64
+		wantOther      int64
+	}{
+		{
+			name: "main.jsbundle categorized as JavaScript",
+			nodes: []*types.FileNode{
+				{Name: "Runner", Path: "Runner", Size: 5000000, IsDir: false},
+				{Name: "main.jsbundle", Path: "main.jsbundle", Size: 3000000, IsDir: false},
+				{Name: "Assets.car", Path: "Assets.car", Size: 1000000, IsDir: false},
+			},
+			wantJavaScript: 3000000,
+			wantAssets:     1000000,
+		},
+		{
+			name: "custom named jsbundle",
+			nodes: []*types.FileNode{
+				{Name: "app.jsbundle", Path: "app.jsbundle", Size: 2000000, IsDir: false},
+			},
+			wantJavaScript: 2000000,
+		},
+		{
+			name: "no JS bundle (native app)",
+			nodes: []*types.FileNode{
+				{Name: "Runner", Path: "Runner", Size: 5000000, IsDir: false},
+				{Name: "Assets.car", Path: "Assets.car", Size: 1000000, IsDir: false},
+			},
+			wantJavaScript: 0,
+			wantAssets:     1000000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			breakdown := categorizeSizes(tt.nodes)
+			if breakdown.JavaScript != tt.wantJavaScript {
+				t.Errorf("JavaScript = %d, want %d", breakdown.JavaScript, tt.wantJavaScript)
+			}
+			if tt.wantAssets != 0 && breakdown.Assets != tt.wantAssets {
+				t.Errorf("Assets = %d, want %d", breakdown.Assets, tt.wantAssets)
+			}
+		})
+	}
+}
+
 func TestIsMetadataFile(t *testing.T) {
 	tests := []struct {
 		name     string

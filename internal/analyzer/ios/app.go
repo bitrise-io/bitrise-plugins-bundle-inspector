@@ -77,6 +77,9 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Expand Mach-O binary segments as virtual children
 	expandMachOSegments(fileTree, path, a.Logger)
 
+	// Detect JS bundle format for React Native apps
+	jsBundleInfo := detectJSBundleInTree(fileTree, path)
+
 	// Create size breakdown
 	sizeBreakdown := categorizeSizes(fileTree)
 
@@ -126,6 +129,11 @@ func (a *AppAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		if appMetadata.MinOSVersion != "" {
 			metadata["min_os_version"] = appMetadata.MinOSVersion
 		}
+	}
+
+	// Add JS bundle info if detected (React Native)
+	for k, v := range jsBundleInfo {
+		metadata[k] = v
 	}
 
 	// Extract app icon with Info.plist-guided search

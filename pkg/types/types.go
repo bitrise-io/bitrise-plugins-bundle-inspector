@@ -35,6 +35,7 @@ type SizeBreakdown struct {
 	Assets      int64            `json:"assets"`
 	Libraries   int64            `json:"libraries"`
 	DEX         int64            `json:"dex,omitempty"`
+	JavaScript  int64            `json:"javascript,omitempty"`
 	Other       int64            `json:"other"`
 	ByCategory  map[string]int64 `json:"by_category,omitempty"`
 	ByExtension map[string]int64 `json:"by_extension,omitempty"`

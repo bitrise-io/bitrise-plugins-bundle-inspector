@@ -141,6 +141,7 @@ func (f *MarkdownFormatter) writeSizeBreakdown(w io.Writer, report *types.Report
 		"Assets":      report.SizeBreakdown.Assets,
 		"Libraries":   report.SizeBreakdown.Libraries,
 		"DEX":         report.SizeBreakdown.DEX,
+		"JavaScript":  report.SizeBreakdown.JavaScript,
 		"Other":       report.SizeBreakdown.Other,
 	}
 
@@ -500,19 +501,21 @@ func calculateUncompressedSize(breakdown *types.SizeBreakdown) int64 {
 	return breakdown.Executable + breakdown.Frameworks +
 		breakdown.Resources + breakdown.Assets +
 		breakdown.Libraries + breakdown.DEX +
+		breakdown.JavaScript +
 		breakdown.Other
 }
 
 // findLargestCategory finds the category with the largest size
 func findLargestCategory(breakdown *types.SizeBreakdown) (string, int64) {
 	categories := map[string]int64{
-		"Frameworks": breakdown.Frameworks,
-		"Resources":  breakdown.Resources,
-		"Executable": breakdown.Executable,
-		"Assets":     breakdown.Assets,
-		"Libraries":  breakdown.Libraries,
-		"DEX":        breakdown.DEX,
-		"Other":      breakdown.Other,
+		"Frameworks":  breakdown.Frameworks,
+		"Resources":   breakdown.Resources,
+		"Executable":  breakdown.Executable,
+		"Assets":      breakdown.Assets,
+		"Libraries":   breakdown.Libraries,
+		"DEX":         breakdown.DEX,
+		"JavaScript":  breakdown.JavaScript,
+		"Other":       breakdown.Other,
 	}
 
 	var maxName string

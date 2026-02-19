@@ -3,8 +3,10 @@ package android
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/shogo82148/androidbinary/apk"
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/android/dex"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/jsbundle"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
@@ -68,6 +71,9 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		fileTree = dex.ReplaceDEXFilesWithVirtual(fileTree, dexTree)
 	}
 
+	// Detect JS bundle format for React Native apps
+	jsBundleInfo := detectJSBundleInZip(path, fileTree)
+
 	// Create size breakdown (after DEX replacement)
 	sizeBreakdown := categorizeAPKSizes(fileTree)
 
@@ -98,6 +104,11 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	}
 	if ver, ok := manifest["version"].(string); ok {
 		version = ver
+	}
+
+	// Add JS bundle info to metadata if detected (React Native)
+	for k, v := range jsBundleInfo {
+		manifest[k] = v
 	}
 
 	report := &types.Report{
@@ -189,8 +200,20 @@ func categorizeAPKDirectory(node *types.FileNode, breakdown *types.SizeBreakdown
 		breakdown.ByCategory["Resources"] += node.Size
 		return true
 	case "assets":
-		breakdown.Assets += node.Size
-		breakdown.ByCategory["Assets"] += node.Size
+		// Check for JS bundles inside assets (React Native)
+		jsSize := collectJSBundleSize(node.Children)
+		if jsSize > 0 {
+			breakdown.JavaScript += jsSize
+			breakdown.ByCategory["JavaScript"] += jsSize
+			nonJS := node.Size - jsSize
+			if nonJS > 0 {
+				breakdown.Assets += nonJS
+				breakdown.ByCategory["Assets"] += nonJS
+			}
+		} else {
+			breakdown.Assets += node.Size
+			breakdown.ByCategory["Assets"] += node.Size
+		}
 		return true
 	}
 
@@ -268,4 +291,74 @@ func categorizeAPKSizes(nodes []*types.FileNode) types.SizeBreakdown {
 	}
 
 	return breakdown
+}
+
+// collectJSBundleSize recursively finds JS bundle files and returns their total size.
+func collectJSBundleSize(nodes []*types.FileNode) int64 {
+	var size int64
+	for _, node := range nodes {
+		if !node.IsDir && jsbundle.IsJSBundleFilename(node.Name) {
+			size += node.Size
+		} else if node.IsDir {
+			size += collectJSBundleSize(node.Children)
+		}
+	}
+	return size
+}
+
+// findJSBundleNode walks a file tree to find the first JS bundle file node.
+func findJSBundleNode(nodes []*types.FileNode) *types.FileNode {
+	for _, node := range nodes {
+		if !node.IsDir && jsbundle.IsJSBundleFilename(node.Name) {
+			return node
+		}
+		if node.IsDir {
+			if found := findJSBundleNode(node.Children); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
+// detectJSBundleInZip detects a JS bundle inside a ZIP archive and identifies its format.
+// Returns metadata about the bundle, or nil if no JS bundle is found.
+func detectJSBundleInZip(archivePath string, fileTree []*types.FileNode) map[string]interface{} {
+	bundleNode := findJSBundleNode(fileTree)
+	if bundleNode == nil {
+		return nil
+	}
+
+	result := map[string]interface{}{
+		"is_react_native": true,
+		"js_bundle_path":  bundleNode.Path,
+		"js_bundle_size":  bundleNode.Size,
+	}
+
+	zipReader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return result
+	}
+	defer zipReader.Close()
+
+	for _, f := range zipReader.File {
+		if f.Name == bundleNode.Path {
+			rc, err := f.Open()
+			if err != nil {
+				break
+			}
+			buf := make([]byte, 512)
+			n, _ := io.ReadAtLeast(rc, buf, 4)
+			rc.Close()
+			if n >= 4 {
+				format, err := jsbundle.DetectFormat(bytes.NewReader(buf[:n]))
+				if err == nil {
+					result["js_bundle_format"] = string(format)
+				}
+			}
+			break
+		}
+	}
+
+	return result
 }

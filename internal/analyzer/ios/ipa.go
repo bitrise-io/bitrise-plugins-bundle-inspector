@@ -13,6 +13,7 @@ import (
 
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/assets"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/ios/macho"
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/analyzer/jsbundle"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/logger"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/util"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
@@ -48,6 +49,7 @@ type appBundleAnalysis struct {
 	appMetadata      *AppMetadata
 	sizeBreakdown    types.SizeBreakdown
 	largestFiles     []types.FileNode
+	jsBundleInfo     map[string]interface{}
 }
 
 // extractAndFindAppBundle extracts the IPA and finds the .app bundle
@@ -103,6 +105,9 @@ func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundle
 	// Expand Mach-O binary segments as virtual children
 	expandMachOSegments(fileTree, appBundlePath, a.Logger)
 
+	// Detect JS bundle format for React Native apps
+	jsBundleInfo := detectJSBundleInTree(fileTree, appBundlePath)
+
 	return &appBundleAnalysis{
 		appBundlePath:    appBundlePath,
 		fileTree:         fileTree,
@@ -114,6 +119,7 @@ func (a *IPAAnalyzer) analyzeAppBundleContents(appBundlePath string) (*appBundle
 		appMetadata:      appMetadata,
 		sizeBreakdown:    categorizeSizes(fileTree),
 		largestFiles:     util.FindLargestFiles(fileTree, 10),
+		jsBundleInfo:     jsBundleInfo,
 	}, nil
 }
 
@@ -196,6 +202,11 @@ func (a *IPAAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 		if analysis.appMetadata.MinOSVersion != "" {
 			metadata["min_os_version"] = analysis.appMetadata.MinOSVersion
 		}
+	}
+
+	// Add JS bundle info if detected (React Native)
+	for k, v := range analysis.jsBundleInfo {
+		metadata[k] = v
 	}
 
 	// Extract app icon with Info.plist-guided search
@@ -374,6 +385,12 @@ func categorizeIOSFile(node *types.FileNode, breakdown *types.SizeBreakdown) {
 		ext == ".strings" || ext == ".plist" || ext == ".json" {
 		breakdown.Resources += node.Size
 		breakdown.ByCategory["Resources"] += node.Size
+		return
+	}
+
+	if jsbundle.IsJSBundleFilename(node.Name) {
+		breakdown.JavaScript += node.Size
+		breakdown.ByCategory["JavaScript"] += node.Size
 		return
 	}
 
@@ -634,6 +651,48 @@ func expandMachOSegments(nodes []*types.FileNode, rootPath string, log logger.Lo
 	for _, node := range nodes {
 		walkNodes(node)
 	}
+}
+
+// detectJSBundleInTree walks the file tree to find a JS bundle file and detect its format.
+// Returns metadata about the bundle, or nil if no JS bundle is found.
+func detectJSBundleInTree(nodes []*types.FileNode, rootPath string) map[string]interface{} {
+	var findBundle func([]*types.FileNode) *types.FileNode
+	findBundle = func(nodes []*types.FileNode) *types.FileNode {
+		for _, node := range nodes {
+			if !node.IsDir && jsbundle.IsJSBundleFilename(node.Name) {
+				return node
+			}
+			if node.IsDir {
+				if found := findBundle(node.Children); found != nil {
+					return found
+				}
+			}
+		}
+		return nil
+	}
+
+	bundleNode := findBundle(nodes)
+	if bundleNode == nil {
+		return nil
+	}
+
+	result := map[string]interface{}{
+		"is_react_native": true,
+		"js_bundle_path":  bundleNode.Path,
+		"js_bundle_size":  bundleNode.Size,
+	}
+
+	fullPath := filepath.Join(rootPath, bundleNode.Path)
+	f, err := os.Open(fullPath)
+	if err == nil {
+		defer f.Close()
+		format, err := jsbundle.DetectFormat(f)
+		if err == nil {
+			result["js_bundle_format"] = string(format)
+		}
+	}
+
+	return result
 }
 
 // generateStripSymbolsOptimizations creates optimization recommendations for binaries with debug symbols.
