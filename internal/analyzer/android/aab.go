@@ -84,8 +84,12 @@ func (a *AABAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromZip(path, "aab")
+	// Extract app icon (use manifest icon name as hint for custom-named icons)
+	var iconHints *util.IconSearchHints
+	if iconName, ok := manifest["icon_name"].(string); ok && iconName != "" {
+		iconHints = &util.IconSearchHints{ManifestIconNames: []string{iconName}}
+	}
+	iconData, err := util.ExtractIconFromZipWithHints(path, "aab", iconHints)
 	if err != nil {
 		// Non-fatal, continue without icon
 		iconData = ""
@@ -185,6 +189,9 @@ func parseAABManifest(aabPath string) (map[string]interface{}, error) {
 				Package     androidbinary.String `xml:"package,attr"`
 				VersionCode androidbinary.Int32  `xml:"http://schemas.android.com/apk/res/android versionCode,attr"`
 				VersionName androidbinary.String `xml:"http://schemas.android.com/apk/res/android versionName,attr"`
+				App         struct {
+					Icon androidbinary.String `xml:"http://schemas.android.com/apk/res/android icon,attr"`
+				} `xml:"application"`
 			}
 
 			// Decode the XML file into the manifest structure
@@ -199,10 +206,26 @@ func parseAABManifest(aabPath string) (map[string]interface{}, error) {
 				if versionCode, err := manifestStruct.VersionCode.Int32(); err == nil && versionCode > 0 {
 					manifest["version_code"] = fmt.Sprintf("%d", versionCode)
 				}
+
+				// Best-effort icon name extraction
+				// AAB manifests may contain unresolvable resource IDs (@0x...) since
+				// we don't have the full resource table context
+				if iconVal, err := manifestStruct.App.Icon.String(); err == nil && iconVal != "" && !strings.HasPrefix(iconVal, "@0x") {
+					// iconVal is e.g. "res/mipmap-hdpi-v4/launcher_icon.png"
+					baseName := iconVal
+					if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
+						baseName = baseName[idx+1:]
+					}
+					if idx := strings.LastIndex(baseName, "."); idx >= 0 {
+						baseName = baseName[:idx]
+					}
+					if baseName != "" {
+						manifest["icon_name"] = baseName
+					}
+				}
 			}
 
 			// Note: App name (label) requires resource parsing which is complex for AAB
-			// Icon extraction is handled separately by util.ExtractIconFromZip
 
 			break
 		}

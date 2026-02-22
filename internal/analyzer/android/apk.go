@@ -79,8 +79,12 @@ func (a *APKAnalyzer) Analyze(ctx context.Context, path string) (*types.Report, 
 	// Find largest files
 	largestFiles := util.FindLargestFiles(fileTree, 10)
 
-	// Extract app icon
-	iconData, err := util.ExtractIconFromZip(path, "apk")
+	// Extract app icon (use manifest icon name as hint for custom-named icons)
+	var iconHints *util.IconSearchHints
+	if iconName, ok := manifest["icon_name"].(string); ok && iconName != "" {
+		iconHints = &util.IconSearchHints{ManifestIconNames: []string{iconName}}
+	}
+	iconData, err := util.ExtractIconFromZipWithHints(path, "apk", iconHints)
 	if err != nil {
 		// Non-fatal, continue without icon
 		iconData = ""
@@ -164,6 +168,22 @@ func parseManifest(apkPath string) (map[string]interface{}, error) {
 	label, err := pkg.Label(nil) // nil for default locale
 	if err == nil && label != "" {
 		manifest["app_name"] = label
+	}
+
+	// Extract icon resource name from android:icon attribute
+	if iconPath, err := m.App.Icon.WithResTableConfig(nil).String(); err == nil && iconPath != "" {
+		// iconPath is e.g. "res/mipmap-hdpi-v4/launcher_icon.png" or "res/mipmap-anydpi-v26/launcher_icon.xml"
+		// Extract base name without extension
+		baseName := iconPath
+		if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
+			baseName = baseName[idx+1:]
+		}
+		if idx := strings.LastIndex(baseName, "."); idx >= 0 {
+			baseName = baseName[:idx]
+		}
+		if baseName != "" {
+			manifest["icon_name"] = baseName
+		}
 	}
 
 	return manifest, nil

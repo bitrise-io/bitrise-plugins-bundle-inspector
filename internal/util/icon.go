@@ -20,11 +20,15 @@ import (
 	"github.com/andrianbdn/iospng"
 )
 
-// IconSearchHints provides context from Info.plist to guide icon extraction.
+// IconSearchHints provides context from app manifests to guide icon extraction.
 type IconSearchHints struct {
-	// PlistIconNames are base names from CFBundleIcons/CFBundleIconFiles
+	// PlistIconNames are base names from CFBundleIcons/CFBundleIconFiles (iOS)
 	// e.g., ["AppIcon60x60", "Icon-Production", "Telegram"]
 	PlistIconNames []string
+
+	// ManifestIconNames are base names from AndroidManifest.xml android:icon attribute
+	// e.g., ["launcher_icon", "ic_launcher"]
+	ManifestIconNames []string
 }
 
 // ExtractIconFromZip extracts the app icon from a ZIP archive (IPA, APK, AAB)
@@ -46,7 +50,7 @@ func ExtractIconFromZipWithHints(zipPath string, artifactType string, hints *Ico
 	case "ipa", "app":
 		iconData, err = extractIOSIconWithHints(r, hints)
 	case "apk", "aab":
-		iconData, err = extractAndroidIcon(r)
+		iconData, err = extractAndroidIcon(r, hints)
 	default:
 		return "", fmt.Errorf("unsupported artifact type: %s", artifactType)
 	}
@@ -254,7 +258,9 @@ func extractIOSIconWithHints(r *zip.ReadCloser, hints *IconSearchHints) ([]byte,
 // extractAndroidIcon extracts icon from Android APK/AAB.
 // Uses prefix matching for density directories to handle Android resource qualifiers
 // (e.g., mipmap-xxxhdpi-v4) and supports both PNG and WebP icon formats.
-func extractAndroidIcon(r *zip.ReadCloser) ([]byte, error) {
+// When hints are provided (from AndroidManifest.xml), the manifest icon names are
+// searched with highest priority, falling back to standard names.
+func extractAndroidIcon(r *zip.ReadCloser, hints *IconSearchHints) ([]byte, error) {
 	// Density directory prefixes in priority order (highest first)
 	type densityEntry struct {
 		prefix   string
@@ -287,6 +293,16 @@ func extractAndroidIcon(r *zip.ReadCloser) ([]byte, error) {
 		{"ic_launcher_round.webp", 2},
 		{"icon.png", 1},
 		{"icon.webp", 1},
+	}
+
+	// Prepend manifest-guided icon names with highest priority
+	if hints != nil {
+		for _, name := range hints.ManifestIconNames {
+			iconFiles = append([]iconEntry{
+				{name + ".png", 6},
+				{name + ".webp", 6},
+			}, iconFiles...)
+		}
 	}
 
 	// Resource path prefixes (APK uses res/, AAB uses base/res/)

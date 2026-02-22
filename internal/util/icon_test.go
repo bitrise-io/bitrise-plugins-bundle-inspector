@@ -128,7 +128,7 @@ func TestExtractAndroidIcon_ExactDensityPath(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
@@ -142,7 +142,7 @@ func TestExtractAndroidIcon_WithQualifierSuffix(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
@@ -163,7 +163,7 @@ func TestExtractAndroidIcon_WebP(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
@@ -180,7 +180,7 @@ func TestExtractAndroidIcon_DensityPriority(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 	// We can't easily distinguish which was selected by content, but we verify
@@ -196,7 +196,7 @@ func TestExtractAndroidIcon_AABPaths(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
@@ -211,9 +211,52 @@ func TestExtractAndroidIcon_NoIcon(t *testing.T) {
 	require.NoError(t, err)
 	defer r.Close()
 
-	data, err := extractAndroidIcon(r)
+	data, err := extractAndroidIcon(r, nil)
 	assert.Error(t, err)
 	assert.Nil(t, data)
+}
+
+func TestExtractAndroidIcon_ManifestHints(t *testing.T) {
+	// Custom icon name that wouldn't be found by heuristic search
+	pngData := minimalPNG()
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-xxxhdpi-v4/launcher_icon.png": pngData,
+		"res/mipmap-xxhdpi-v4/launcher_icon.png":  pngData,
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	// Without hints, the custom icon name is NOT found
+	data, err := extractAndroidIcon(r, nil)
+	assert.Error(t, err)
+	assert.Nil(t, data)
+
+	// Re-open since the reader may have been consumed
+	r2, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r2.Close()
+
+	// With manifest hints, the custom icon name IS found
+	hints := &IconSearchHints{ManifestIconNames: []string{"launcher_icon"}}
+	data, err = extractAndroidIcon(r2, hints)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestExtractAndroidIcon_ManifestHintsWebP(t *testing.T) {
+	// Custom icon name with WebP format
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-xxhdpi-v4/my_app_icon.webp": minimalWebP(),
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	hints := &IconSearchHints{ManifestIconNames: []string{"my_app_icon"}}
+	data, err := extractAndroidIcon(r, hints)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
 }
 
 // minimalWebP returns a valid 1x1 WebP image (VP8 lossy, generated via cwebp).
