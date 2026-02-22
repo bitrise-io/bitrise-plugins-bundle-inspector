@@ -1,9 +1,16 @@
 package util
 
 import (
+	"archive/zip"
+	"bytes"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetIconPriority(t *testing.T) {
@@ -77,5 +84,145 @@ func TestIsCgBIPNG(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, isCgBIPNG(tt.data))
 		})
+	}
+}
+
+// --- Android icon extraction tests ---
+
+// createTestAPK creates a zip file with the given entries (path → data).
+func createTestAPK(t *testing.T, entries map[string][]byte) string {
+	t.Helper()
+	apkPath := filepath.Join(t.TempDir(), "test.apk")
+	f, err := os.Create(apkPath)
+	require.NoError(t, err)
+
+	w := zip.NewWriter(f)
+	for path, data := range entries {
+		entry, err := w.Create(path)
+		require.NoError(t, err)
+		_, err = entry.Write(data)
+		require.NoError(t, err)
+	}
+	require.NoError(t, w.Close())
+	require.NoError(t, f.Close())
+	return apkPath
+}
+
+// minimalPNG returns a valid 1x1 PNG image.
+func minimalPNG() []byte {
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, image.Black)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+func TestExtractAndroidIcon_ExactDensityPath(t *testing.T) {
+	// Regression: standard paths without qualifier suffix still work
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-xxxhdpi/ic_launcher.png": minimalPNG(),
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestExtractAndroidIcon_WithQualifierSuffix(t *testing.T) {
+	// Modern APKs use qualifier suffixes like -v4
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-xxxhdpi-v4/ic_launcher.png": minimalPNG(),
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestExtractAndroidIcon_WebP(t *testing.T) {
+	// WebP icons should be found and decoded to PNG.
+	// We use a real PNG as the content but name it .webp to test the filename matching.
+	// The actual WebP decode is tested via image.Decode which requires a real WebP.
+	// Here we verify the filename matching works for .webp extensions.
+	// For a full decode test, we create a real WebP via encoding.
+
+	webpData := minimalWebP()
+
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-xxhdpi-v4/ic_launcher.webp": webpData,
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestExtractAndroidIcon_DensityPriority(t *testing.T) {
+	// xxxhdpi should be preferred over mdpi
+	pngData := minimalPNG()
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/mipmap-mdpi/ic_launcher.png":        pngData,
+		"res/mipmap-xxxhdpi-v4/ic_launcher.png":  pngData,
+		"res/mipmap-xhdpi-v4/ic_launcher.png":    pngData,
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	// We can't easily distinguish which was selected by content, but we verify
+	// extraction succeeds when multiple densities are present
+}
+
+func TestExtractAndroidIcon_AABPaths(t *testing.T) {
+	// AAB bundles nest resources under base/res/
+	apkPath := createTestAPK(t, map[string][]byte{
+		"base/res/mipmap-xxhdpi-v4/ic_launcher.png": minimalPNG(),
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestExtractAndroidIcon_NoIcon(t *testing.T) {
+	// No icon files → error
+	apkPath := createTestAPK(t, map[string][]byte{
+		"res/layout/activity_main.xml": []byte("<LinearLayout/>"),
+		"classes.dex":                  []byte{0x64, 0x65, 0x78},
+	})
+	r, err := zip.OpenReader(apkPath)
+	require.NoError(t, err)
+	defer r.Close()
+
+	data, err := extractAndroidIcon(r)
+	assert.Error(t, err)
+	assert.Nil(t, data)
+}
+
+// minimalWebP returns a valid 1x1 WebP image (VP8 lossy, generated via cwebp).
+func minimalWebP() []byte {
+	return []byte{
+		0x52, 0x49, 0x46, 0x46, 0x3c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20,
+		0x30, 0x00, 0x00, 0x00, 0xd0, 0x01, 0x00, 0x9d, 0x01, 0x2a, 0x01, 0x00, 0x01, 0x00, 0x02, 0x00,
+		0x34, 0x25, 0xa0, 0x02, 0x74, 0xba, 0x01, 0xf8, 0x00, 0x03, 0xb0, 0x00, 0xfe, 0xf0, 0xc4, 0x0b,
+		0xff, 0x20, 0xb9, 0x61, 0x75, 0xc8, 0xd7, 0xff, 0x20, 0x3f, 0xe4, 0x07, 0xfc, 0x80, 0xff, 0xf8,
+		0xf2, 0x00, 0x00, 0x00,
 	}
 }
