@@ -15,6 +15,8 @@ import (
 
 	_ "image/jpeg" // Register JPEG decoder
 
+	_ "golang.org/x/image/webp" // Register WebP decoder (modern Android icons)
+
 	"github.com/andrianbdn/iospng"
 )
 
@@ -249,45 +251,101 @@ func extractIOSIconWithHints(r *zip.ReadCloser, hints *IconSearchHints) ([]byte,
 	return nil, fmt.Errorf("no valid icon found")
 }
 
-// extractAndroidIcon extracts icon from Android APK/AAB
+// extractAndroidIcon extracts icon from Android APK/AAB.
+// Uses prefix matching for density directories to handle Android resource qualifiers
+// (e.g., mipmap-xxxhdpi-v4) and supports both PNG and WebP icon formats.
 func extractAndroidIcon(r *zip.ReadCloser) ([]byte, error) {
-	// Look for ic_launcher.png in various densities
-	// Priority: xxxhdpi > xxhdpi > xhdpi > hdpi > mdpi
-
-	densities := []string{
-		"mipmap-xxxhdpi",
-		"mipmap-xxhdpi",
-		"mipmap-xhdpi",
-		"mipmap-hdpi",
-		"drawable-xxxhdpi",
-		"drawable-xxhdpi",
-		"drawable-xhdpi",
-		"drawable-hdpi",
-		"mipmap-mdpi",
-		"drawable-mdpi",
-		"mipmap",
-		"drawable",
+	// Density directory prefixes in priority order (highest first)
+	type densityEntry struct {
+		prefix   string
+		priority int
+	}
+	densityPrefixes := []densityEntry{
+		{"mipmap-xxxhdpi", 60},
+		{"mipmap-xxhdpi", 50},
+		{"mipmap-xhdpi", 40},
+		{"mipmap-hdpi", 30},
+		{"drawable-xxxhdpi", 25},
+		{"drawable-xxhdpi", 24},
+		{"drawable-xhdpi", 23},
+		{"drawable-hdpi", 22},
+		{"mipmap-mdpi", 20},
+		{"drawable-mdpi", 15},
+		{"mipmap", 10},
+		{"drawable", 5},
 	}
 
-	iconNames := []string{
-		"ic_launcher.png",
-		"ic_launcher_round.png",
-		"icon.png",
+	// Icon filenames with priority bonus (PNG and WebP variants)
+	type iconEntry struct {
+		name     string
+		priority int
+	}
+	iconFiles := []iconEntry{
+		{"ic_launcher.png", 4},
+		{"ic_launcher.webp", 4},
+		{"ic_launcher_round.png", 2},
+		{"ic_launcher_round.webp", 2},
+		{"icon.png", 1},
+		{"icon.webp", 1},
 	}
 
-	// Try each density in order
-	for _, density := range densities {
-		for _, iconName := range iconNames {
-			path := fmt.Sprintf("res/%s/%s", density, iconName)
+	// Resource path prefixes (APK uses res/, AAB uses base/res/)
+	resPrefixes := []string{"res/", "base/res/"}
 
-			for _, file := range r.File {
-				if file.Name == path {
-					data, err := extractAndConvertIcon(file)
-					if err == nil && len(data) > 0 {
-						return data, nil
+	type candidate struct {
+		file     *zip.File
+		priority int
+	}
+	var candidates []candidate
+
+	for _, file := range r.File {
+		// Check if path starts with a known resource prefix
+		var relPath string
+		for _, prefix := range resPrefixes {
+			if strings.HasPrefix(file.Name, prefix) {
+				relPath = strings.TrimPrefix(file.Name, prefix)
+				break
+			}
+		}
+		if relPath == "" {
+			continue
+		}
+
+		// Split into directory and filename: e.g. "mipmap-xxxhdpi-v4/ic_launcher.webp"
+		parts := strings.SplitN(relPath, "/", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		dirName := parts[0]
+		fileName := parts[1]
+
+		// Match density directory by prefix (handles qualifiers like -v4, -v21)
+		for _, dp := range densityPrefixes {
+			if dirName == dp.prefix || strings.HasPrefix(dirName, dp.prefix+"-") {
+				// Match icon filename
+				for _, icon := range iconFiles {
+					if fileName == icon.name {
+						candidates = append(candidates, candidate{
+							file:     file,
+							priority: dp.priority + icon.priority,
+						})
 					}
 				}
+				break
 			}
+		}
+	}
+
+	// Sort by priority (highest first)
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].priority > candidates[j].priority
+	})
+
+	// Try to extract the best candidate
+	for _, c := range candidates {
+		data, err := extractAndConvertIcon(c.file)
+		if err == nil && len(data) > 0 {
+			return data, nil
 		}
 	}
 
