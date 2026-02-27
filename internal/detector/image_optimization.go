@@ -21,11 +21,13 @@ type ImageOptimization struct {
 }
 
 // ImageOptimizationDetector implements the Detector interface
-type ImageOptimizationDetector struct{}
+type ImageOptimizationDetector struct {
+	platform Platform
+}
 
-// NewImageOptimizationDetector creates a new image optimization detector
-func NewImageOptimizationDetector() *ImageOptimizationDetector {
-	return &ImageOptimizationDetector{}
+// NewImageOptimizationDetector creates a new image optimization detector for the given platform
+func NewImageOptimizationDetector(platform Platform) *ImageOptimizationDetector {
+	return &ImageOptimizationDetector{platform: platform}
 }
 
 // checkSipsAvailable verifies that the sips command is available
@@ -108,11 +110,126 @@ func measureActualHEICConversion(imagePath string) (int64, error) {
 	return savings, nil
 }
 
+// measureActualWebPConversion converts an image to WebP using cwebp and measures real savings.
+// Returns savings in bytes, or error if cwebp is not available or conversion fails.
+func measureActualWebPConversion(imagePath string) (int64, error) {
+	if _, err := exec.LookPath("cwebp"); err != nil {
+		return 0, fmt.Errorf("cwebp not available")
+	}
+
+	originalInfo, err := os.Stat(imagePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat original: %w", err)
+	}
+
+	tmpFile, err := os.CreateTemp("", "webp_conversion_*.webp")
+	if err != nil {
+		return 0, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	cmd := exec.Command("cwebp", "-q", "80", imagePath, "-o", tmpPath)
+	if err := cmd.Run(); err != nil {
+		return 0, fmt.Errorf("cwebp conversion failed: %w", err)
+	}
+
+	convertedInfo, err := os.Stat(tmpPath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat converted: %w", err)
+	}
+
+	savings := originalInfo.Size() - convertedInfo.Size()
+	if savings <= 0 {
+		return 0, fmt.Errorf("no savings achieved (WebP: %d bytes vs original: %d bytes)", convertedInfo.Size(), originalInfo.Size())
+	}
+
+	return savings, nil
+}
+
+// estimateWebPSavings estimates savings from converting to WebP format using
+// conservative compression ratios based on published benchmarks.
+func estimateWebPSavings(imagePath string) (int64, error) {
+	info, err := os.Stat(imagePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat file: %w", err)
+	}
+	originalSize := info.Size()
+
+	// Conservative estimate: ~25% savings for both PNG and JPEG
+	// Based on Google's published WebP compression benchmarks
+	savings := int64(float64(originalSize) * 0.25)
+	if savings <= 0 {
+		return 0, fmt.Errorf("no estimated savings")
+	}
+
+	return savings, nil
+}
+
+// targetFormat returns the recommended image format name for this platform
+func (d *ImageOptimizationDetector) targetFormat() string {
+	if d.platform == PlatformAndroid {
+		return "WebP"
+	}
+	return "HEIC"
+}
+
+// shouldOptimizeImage checks if a file extension is eligible for optimization on this platform
+func (d *ImageOptimizationDetector) shouldOptimizeImage(ext string) (shouldOptimize bool, formatName string, minSize int64) {
+	switch ext {
+	case ".png":
+		return true, "PNG", 5 * 1024
+	case ".jpg", ".jpeg":
+		return true, "JPEG", 10 * 1024
+	case ".webp":
+		// WebP files are already in the target format for Android
+		if d.platform == PlatformAndroid {
+			return false, "", 0
+		}
+		return true, "WebP", 10 * 1024
+	}
+	return false, "", 0
+}
+
+// measureSavings measures or estimates savings for converting an image to the target format
+func (d *ImageOptimizationDetector) measureSavings(imagePath string) (int64, error) {
+	if d.platform == PlatformAndroid {
+		// Try actual cwebp measurement first, fall back to estimation
+		if savings, err := measureActualWebPConversion(imagePath); err == nil {
+			return savings, nil
+		}
+		return estimateWebPSavings(imagePath)
+	}
+	return measureActualHEICConversion(imagePath)
+}
+
+// buildRecommendation creates platform-appropriate description and action text
+func (d *ImageOptimizationDetector) buildRecommendation(formatName, imagePath, ext string, savings int64) (description, action string) {
+	if d.platform == PlatformAndroid {
+		description = fmt.Sprintf("%s can be converted to WebP format for better compression. "+
+			"Estimated savings: %s", formatName, util.FormatBytes(savings))
+		action = "Convert to WebP format (supported since Android 4.0 for lossy, Android 4.3 for lossless and transparency)"
+		return
+	}
+
+	alphaNote := ""
+	if ext == ".png" && hasAlpha(imagePath) {
+		alphaNote = " (has transparency - supported in iOS 11+)"
+	}
+	description = fmt.Sprintf("%s can be converted to HEIC format for better compression. "+
+		"Measured savings: %s%s", formatName, util.FormatBytes(savings), alphaNote)
+	action = "Convert to HEIC format using Xcode Asset Catalog (Image Set with Preserve Vector Data disabled)"
+	return
+}
+
 // Detect runs the detector and returns optimizations
 func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimization, error) {
-	// Check that sips is available (required for this detector)
-	if err := checkSipsAvailable(); err != nil {
-		return nil, err
+	// iOS requires sips for actual HEIC conversion measurement
+	if d.platform == PlatformIOS {
+		if err := checkSipsAvailable(); err != nil {
+			return nil, err
+		}
 	}
 
 	mapper := util.NewPathMapper(rootPath)
@@ -125,56 +242,27 @@ func (d *ImageOptimizationDetector) Detect(rootPath string) ([]types.Optimizatio
 
 		ext := util.GetLowerExtension(path)
 
-		// Check if this is an image format we can optimize to HEIC
-		// PNG, JPEG, and WebP can all benefit from HEIC conversion
-		var shouldOptimize bool
-		var formatName string
-		var minSize int64
-
-		switch ext {
-		case ".png":
-			shouldOptimize = true
-			formatName = "PNG"
-			minSize = 5 * 1024 // 5 KB threshold for PNGs
-		case ".jpg", ".jpeg":
-			shouldOptimize = true
-			formatName = "JPEG"
-			minSize = 10 * 1024 // 10 KB threshold for JPEGs
-		case ".webp":
-			shouldOptimize = true
-			formatName = "WebP"
-			minSize = 10 * 1024 // 10 KB threshold for WebP
-		}
-
+		shouldOptimize, formatName, minSize := d.shouldOptimizeImage(ext)
 		if !shouldOptimize || info.Size() < minSize {
 			return nil
 		}
 
-		// Measure actual HEIC conversion savings
-		savings, err := measureActualHEICConversion(path)
+		savings, err := d.measureSavings(path)
 		if err != nil {
-			// Skip this image if conversion fails
+			// Skip this image if measurement/estimation fails
 			return nil
 		}
 
-		// Check for transparency (PNG only, others don't need the check)
-		alphaNote := ""
-		if ext == ".png" && hasAlpha(path) {
-			alphaNote = " (has transparency - supported in iOS 11+)"
-		}
-
-		// Build description based on format
-		description := fmt.Sprintf("%s can be converted to HEIC format for better compression. "+
-			"Measured savings: %s%s", formatName, util.FormatBytes(savings), alphaNote)
+		description, action := d.buildRecommendation(formatName, path, ext, savings)
 
 		optimizations = append(optimizations, types.Optimization{
 			Category:    "image-optimization",
 			Severity:    "medium",
-			Title:       fmt.Sprintf("Convert %s to HEIC", filepath.Base(path)),
+			Title:       fmt.Sprintf("Convert %s to %s", filepath.Base(path), d.targetFormat()),
 			Description: description,
 			Impact:      savings,
 			Files:       []string{mapper.ToRelative(path)},
-			Action:      "Convert to HEIC format using Xcode Asset Catalog (Image Set with Preserve Vector Data disabled)",
+			Action:      action,
 		})
 
 		return nil

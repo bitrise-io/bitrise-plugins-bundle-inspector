@@ -130,14 +130,16 @@ func (o *Orchestrator) extractArtifact(artifactType types.ArtifactType, artifact
 
 // runAdditionalDetectors runs all additional optimization detectors
 func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath string) {
+	platform := o.detectPlatform(report.ArtifactInfo.Type)
+
 	detectors := []detector.Detector{
-		detector.NewImageOptimizationDetector(),
-		detector.NewLooseImagesDetector(),
+		detector.NewImageOptimizationDetector(platform),
 		detector.NewUnnecessaryFilesDetector(),
 	}
 
 	// Add iOS-specific detectors
-	if o.isIOSArtifact(report.ArtifactInfo.Type) {
+	if platform == detector.PlatformIOS {
+		detectors = append(detectors, detector.NewLooseImagesDetector())
 		detectors = append(detectors, detector.NewSmallFilesDetector())
 	}
 
@@ -149,6 +151,14 @@ func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath 
 		}
 		report.Optimizations = append(report.Optimizations, opts...)
 	}
+}
+
+// detectPlatform maps artifact type to detector platform
+func (o *Orchestrator) detectPlatform(artifactType types.ArtifactType) detector.Platform {
+	if o.isIOSArtifact(artifactType) {
+		return detector.PlatformIOS
+	}
+	return detector.PlatformAndroid
 }
 
 // ruleConfig returns the detector rule configuration based on orchestrator settings.
