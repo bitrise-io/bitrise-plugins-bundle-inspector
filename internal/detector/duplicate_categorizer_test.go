@@ -448,6 +448,45 @@ func TestNewRuleRegistryWithConfig_NoSmallDuplicates(t *testing.T) {
 	}
 }
 
+func TestNewRuleRegistryWithConfig_AndroidPlatform(t *testing.T) {
+	config := RuleConfig{
+		FilterSmallDuplicates: true,
+		Platform:              PlatformAndroid,
+	}
+	registry := NewRuleRegistryWithConfig(config)
+
+	rules := registry.GetRules()
+	// Android should only have cross-platform rules:
+	// Rule 10 (small duplicates) + Rule 9 (asset duplication) = 2
+	require.Equal(t, 2, len(rules), "Android should have 2 cross-platform rules")
+
+	ruleIDs := make(map[string]bool)
+	for _, rule := range rules {
+		ruleIDs[rule.ID()] = true
+	}
+
+	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have small duplicates rule")
+	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have asset duplication rule")
+
+	// iOS-only rules should NOT be present
+	assert.False(t, ruleIDs["rule-1-info-plist"], "Should NOT have Info.plist rule for Android")
+	assert.False(t, ruleIDs["rule-2-nib-variants"], "Should NOT have NIB variants rule for Android")
+	assert.False(t, ruleIDs["rule-8-extension-duplication"], "Should NOT have extension duplication rule for Android")
+}
+
+func TestNewRuleRegistryWithConfig_AndroidNoSmallDuplicates(t *testing.T) {
+	config := RuleConfig{
+		FilterSmallDuplicates: false,
+		Platform:              PlatformAndroid,
+	}
+	registry := NewRuleRegistryWithConfig(config)
+
+	rules := registry.GetRules()
+	// Android without small duplicates: only Rule 9 (asset duplication) = 1
+	require.Equal(t, 1, len(rules), "Android without small duplicates should have 1 rule")
+	assert.Equal(t, "rule-9-asset-duplication", rules[0].ID())
+}
+
 func TestLocalizationRule(t *testing.T) {
 	rule := NewLocalizationRule()
 

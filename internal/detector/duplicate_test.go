@@ -33,7 +33,7 @@ func TestDuplicateDetector(t *testing.T) {
 	}
 
 	// Detect duplicates
-	detector := NewDuplicateDetector()
+	detector := NewDuplicateDetector(PlatformIOS)
 	duplicates, err := detector.DetectDuplicates(tempDir)
 	if err != nil {
 		t.Fatalf("DetectDuplicates failed: %v", err)
@@ -93,7 +93,7 @@ func TestDuplicateDetector_RelativePaths(t *testing.T) {
 		}
 	}
 
-	detector := NewDuplicateDetector()
+	detector := NewDuplicateDetector(PlatformIOS)
 	duplicates, err := detector.DetectDuplicates(tempDir)
 	if err != nil {
 		t.Fatalf("DetectDuplicates failed: %v", err)
@@ -124,6 +124,49 @@ func TestDuplicateDetector_RelativePaths(t *testing.T) {
 		if !found {
 			t.Errorf("Expected path not found in duplicates: %s", path)
 		}
+	}
+}
+
+func TestDuplicateDetector_Android_RawFileSize(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "duplicate-android-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create duplicate files with known size (11 bytes for "Hello World")
+	content := []byte("Hello World")
+
+	file1 := filepath.Join(tempDir, "file1.txt")
+	file2 := filepath.Join(tempDir, "file2.txt")
+
+	if err := os.WriteFile(file1, content, 0644); err != nil {
+		t.Fatalf("Failed to write file1: %v", err)
+	}
+	if err := os.WriteFile(file2, content, 0644); err != nil {
+		t.Fatalf("Failed to write file2: %v", err)
+	}
+
+	detector := NewDuplicateDetector(PlatformAndroid)
+	duplicates, err := detector.DetectDuplicates(tempDir)
+	if err != nil {
+		t.Fatalf("DetectDuplicates failed: %v", err)
+	}
+
+	if len(duplicates) != 1 {
+		t.Fatalf("Expected 1 duplicate set, got %d", len(duplicates))
+	}
+
+	dup := duplicates[0]
+	// Android should use raw file size, not block-aligned
+	expectedRawSize := int64(len(content))
+	if dup.Size != expectedRawSize {
+		t.Errorf("Android: expected raw size %d, got %d (should NOT be block-aligned)", expectedRawSize, dup.Size)
+	}
+	// Wasted size is (count - 1) * raw size
+	expectedWasted := expectedRawSize
+	if dup.WastedSize != expectedWasted {
+		t.Errorf("Android: expected wasted size %d, got %d", expectedWasted, dup.WastedSize)
 	}
 }
 

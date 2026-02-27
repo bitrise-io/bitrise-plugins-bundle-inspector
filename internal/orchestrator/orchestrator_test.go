@@ -223,6 +223,7 @@ func TestGenerateOptimizations_ExtensionDuplicationMessage(t *testing.T) {
 
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
+			Type: types.ArtifactTypeIPA,
 			Size: 100 * 1024 * 1024,
 		},
 		Duplicates: []types.DuplicateSet{

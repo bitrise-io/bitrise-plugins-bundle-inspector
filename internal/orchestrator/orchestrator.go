@@ -66,6 +66,8 @@ func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*t
 
 // runDetectors executes duplicate detection and additional optimization detectors
 func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) error {
+	platform := o.detectPlatform(report.ArtifactInfo.Type)
+
 	// Extract artifact for duplicate detection
 	extractPath, shouldCleanup, err := o.extractArtifact(report.ArtifactInfo.Type, artifactPath)
 	if err != nil {
@@ -81,7 +83,7 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 	}
 
 	// Run duplicate detection for files
-	dupDetector := detector.NewDuplicateDetector()
+	dupDetector := detector.NewDuplicateDetector(platform)
 	duplicates, err := dupDetector.DetectDuplicates(extractPath)
 	if err != nil {
 		o.Logger.Warn("duplicate detection failed: %v", err)
@@ -96,7 +98,7 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 	}
 
 	// Filter duplicates to only actionable ones
-	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig())
+	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig(platform))
 	actionable, _ := categorizer.FilterDuplicates(report.Duplicates)
 	report.Duplicates = actionable
 
@@ -104,7 +106,7 @@ func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) e
 	o.annotateFileTreeDuplicates(report, extractPath)
 
 	// Run additional detectors
-	o.runAdditionalDetectors(report, extractPath)
+	o.runAdditionalDetectors(report, extractPath, platform)
 
 	return nil
 }
@@ -129,16 +131,14 @@ func (o *Orchestrator) extractArtifact(artifactType types.ArtifactType, artifact
 }
 
 // runAdditionalDetectors runs all additional optimization detectors
-func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath string) {
-	platform := o.detectPlatform(report.ArtifactInfo.Type)
-
+func (o *Orchestrator) runAdditionalDetectors(report *types.Report, extractPath string, platform detector.Platform) {
 	detectors := []detector.Detector{
 		detector.NewImageOptimizationDetector(platform),
-		detector.NewUnnecessaryFilesDetector(),
 	}
 
 	// Add iOS-specific detectors
 	if platform == detector.PlatformIOS {
+		detectors = append(detectors, detector.NewUnnecessaryFilesDetector())
 		detectors = append(detectors, detector.NewLooseImagesDetector())
 		detectors = append(detectors, detector.NewSmallFilesDetector())
 	}
@@ -162,9 +162,10 @@ func (o *Orchestrator) detectPlatform(artifactType types.ArtifactType) detector.
 }
 
 // ruleConfig returns the detector rule configuration based on orchestrator settings.
-func (o *Orchestrator) ruleConfig() detector.RuleConfig {
+func (o *Orchestrator) ruleConfig(platform detector.Platform) detector.RuleConfig {
 	return detector.RuleConfig{
 		FilterSmallDuplicates: o.FilterSmallDuplicates,
+		Platform:              platform,
 	}
 }
 
@@ -182,7 +183,8 @@ func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optim
 	optimizations := report.Optimizations
 
 	// Create duplicate categorizer to get priority info for each actionable duplicate
-	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig())
+	platform := o.detectPlatform(report.ArtifactInfo.Type)
+	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig(platform))
 
 	// Add duplicate file optimizations (already filtered to actionable only)
 	for _, dup := range report.Duplicates {

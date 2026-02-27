@@ -24,6 +24,9 @@ type RuleConfig struct {
 	// FilterSmallDuplicates controls whether files at or below filesystem block size (4KB)
 	// are filtered out. When false, small duplicates are reported like any other duplicate.
 	FilterSmallDuplicates bool
+	// Platform controls which platform-specific rules are registered.
+	// iOS-only rules (Info.plist, NIB, framework metadata, etc.) are skipped for Android.
+	Platform Platform
 }
 
 // DefaultRuleConfig returns the default rule configuration.
@@ -49,31 +52,35 @@ func NewRuleRegistryWithConfig(config RuleConfig) *RuleRegistry {
 		rules: make([]Rule, 0),
 	}
 
-	// Register default rules (PR 1: Rules 1-3)
-	registry.Register(NewInfoPlistRule())
-	registry.Register(NewNIBVariantsRule())
-	registry.Register(NewContentsJSONRule())
+	// Register iOS-only filtering rules (Rules 1-7)
+	// These reference iOS-specific concepts (Info.plist, NIB, .framework, .lproj, etc.)
+	// that don't exist in Android bundles.
+	if config.Platform != PlatformAndroid {
+		registry.Register(NewInfoPlistRule())
+		registry.Register(NewNIBVariantsRule())
+		registry.Register(NewContentsJSONRule())
+		registry.Register(NewLocalizationRule())
+		registry.Register(NewFrameworkScriptsRule())
+		registry.Register(NewFrameworkMetadataRule())
+		registry.Register(NewThirdPartySDKRule())
+	}
 
-	// Register additional rules (PR 2: Rules 4-7)
-	registry.Register(NewLocalizationRule())
-	registry.Register(NewFrameworkScriptsRule())
-	registry.Register(NewFrameworkMetadataRule())
-	registry.Register(NewThirdPartySDKRule())
-
-	// Register new filtering rules (before actionable rules).
-	// Rule 10 filters files <= 4KB (filesystem block size) as negligible savings.
-	// Registered before Rules 8-9 so small files never reach actionable rules.
+	// Register cross-platform filtering rules.
+	// Rule 10 filters files <= 4KB as negligible savings.
+	// Registered before actionable rules so small files never reach them.
 	if config.FilterSmallDuplicates {
 		registry.Register(NewSmallDuplicatesRule())
 	}
-	// Rule 11 filters asset catalog device variants (phone/pad idioms).
-	registry.Register(NewDeviceVariantRule())
-	// Rule 12 filters fonts duplicated across extension sandbox boundaries.
-	// Must come before Rule 8 because font extension duplication is not actionable.
-	registry.Register(NewFontExtensionRule())
 
-	// Register actionable rules (PR 3: Rules 8-9)
-	registry.Register(NewExtensionDuplicationRule())
+	// Register iOS-only filtering rules (Rules 11-12) and actionable Rule 8.
+	// These reference iOS-specific concepts (.appex extensions, device idioms).
+	if config.Platform != PlatformAndroid {
+		registry.Register(NewDeviceVariantRule())
+		registry.Register(NewFontExtensionRule())
+		registry.Register(NewExtensionDuplicationRule())
+	}
+
+	// Register cross-platform actionable rule (Rule 9)
 	registry.Register(NewAssetDuplicationRule())
 
 	return registry
