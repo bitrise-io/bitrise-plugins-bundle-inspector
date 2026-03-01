@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/internal/detector"
 	"github.com/bitrise-io/bitrise-plugins-bundle-inspector/pkg/types"
 )
 
@@ -223,6 +224,7 @@ func TestGenerateOptimizations_ExtensionDuplicationMessage(t *testing.T) {
 
 	report := &types.Report{
 		ArtifactInfo: types.ArtifactInfo{
+			Type: types.ArtifactTypeIPA,
 			Size: 100 * 1024 * 1024,
 		},
 		Duplicates: []types.DuplicateSet{
@@ -251,7 +253,7 @@ func TestGenerateOptimizations_ExtensionDuplicationMessage(t *testing.T) {
 		},
 	}
 
-	optimizations := orch.generateOptimizations(report)
+	optimizations := orch.generateOptimizations(report, detector.PlatformIOS)
 
 	// Find the extension duplication optimization
 	var extOpt, regOpt *types.Optimization
@@ -344,5 +346,69 @@ func TestAnnotateFileTreeDuplicates_IPAPrefix(t *testing.T) {
 	iconB := report.FileTree[0].Children[1].Children[0]
 	if !iconB.IsDuplicate || iconB.Hash != hash {
 		t.Errorf("Expected B/icon.png annotated (IsDuplicate=%v, Hash=%s)", iconB.IsDuplicate, iconB.Hash)
+	}
+}
+
+func TestGenerateOptimizations_AndroidSkipsIOSRules(t *testing.T) {
+	orch := New()
+
+	report := &types.Report{
+		ArtifactInfo: types.ArtifactInfo{
+			Type: types.ArtifactTypeAPK,
+			Size: 50 * 1024 * 1024,
+		},
+		Duplicates: []types.DuplicateSet{
+			{
+				// Extension duplication pattern (.appex) — iOS-only rule should not fire for Android
+				Hash:  "ext_hash",
+				Size:  300 * 1024,
+				Count: 2,
+				Files: []string{
+					"res/drawable/logo.png",
+					"res/drawable-hdpi/logo.png",
+				},
+				WastedSize: 300 * 1024,
+			},
+		},
+	}
+
+	optimizations := orch.generateOptimizations(report, detector.PlatformAndroid)
+
+	// Should produce a duplicate optimization with generic action (not the iOS extension-specific one)
+	if len(optimizations) == 0 {
+		t.Fatal("Expected at least one optimization")
+	}
+
+	for _, opt := range optimizations {
+		if opt.Category == "duplicates" {
+			if opt.Action != "Keep only one copy and deduplicate references" {
+				t.Errorf("Expected generic duplicate action for Android, got: %s", opt.Action)
+			}
+		}
+	}
+}
+
+func TestDetectPlatform(t *testing.T) {
+	orch := New()
+
+	tests := []struct {
+		name     string
+		artifact types.ArtifactType
+		want     detector.Platform
+	}{
+		{"IPA", types.ArtifactTypeIPA, detector.PlatformIOS},
+		{"App", types.ArtifactTypeApp, detector.PlatformIOS},
+		{"XCArchive", types.ArtifactTypeXCArchive, detector.PlatformIOS},
+		{"APK", types.ArtifactTypeAPK, detector.PlatformAndroid},
+		{"AAB", types.ArtifactTypeAAB, detector.PlatformAndroid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := orch.detectPlatform(tt.artifact)
+			if got != tt.want {
+				t.Errorf("detectPlatform(%s) = %s, want %s", tt.artifact, got, tt.want)
+			}
+		})
 	}
 }

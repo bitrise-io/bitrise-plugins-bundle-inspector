@@ -75,7 +75,10 @@ func DetectLooseImages(rootPath string) ([]LooseImage, error) {
 	return looseImages, err
 }
 
-// LooseImagesDetector implements the Detector interface
+// LooseImagesDetector implements the Detector interface.
+// This detector is iOS-only: it looks for images outside .xcassets catalogs
+// and savings are calculated using iOS APFS 4KB block alignment.
+// The orchestrator gates this detector to PlatformIOS.
 type LooseImagesDetector struct{}
 
 // NewLooseImagesDetector creates a new loose images detector

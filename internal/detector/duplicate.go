@@ -16,13 +16,16 @@ type DuplicateDetector struct {
 	sizeGroups map[int64][]string
 	// Map of hash -> list of file paths
 	hashGroups map[string][]string
+	// Platform determines size calculation strategy
+	platform Platform
 }
 
-// NewDuplicateDetector creates a new duplicate detector.
-func NewDuplicateDetector() *DuplicateDetector {
+// NewDuplicateDetector creates a new duplicate detector for the given platform.
+func NewDuplicateDetector(platform Platform) *DuplicateDetector {
 	return &DuplicateDetector{
 		sizeGroups: make(map[int64][]string),
 		hashGroups: make(map[string][]string),
+		platform:   platform,
 	}
 }
 
@@ -89,17 +92,21 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 			continue
 		}
 
-		// Use block-aligned size for accurate space calculations
-		// iOS apps store files in 4 KB blocks, so even small files occupy a full block
-		actualSize := info.Size()
-		alignedSize := util.CalculateDiskUsage(actualSize)
+		// Calculate size based on platform:
+		// iOS: use block-aligned size (APFS 4KB blocks, even small files occupy a full block)
+		// Android: use raw file size (ZIP-based archives have no filesystem block overhead)
+		fileSize := info.Size()
+		reportedSize := fileSize
+		if d.platform == PlatformIOS {
+			reportedSize = util.CalculateDiskUsage(fileSize)
+		}
 
 		dup := types.DuplicateSet{
 			Hash:       hash,
-			Size:       alignedSize,          // Report block-aligned size
+			Size:       reportedSize,
 			Count:      len(files),
 			Files:      files,
-			WastedSize: (int64(len(files)) - 1) * alignedSize, // Calculate waste based on aligned size
+			WastedSize: (int64(len(files)) - 1) * reportedSize,
 		}
 		duplicates = append(duplicates, dup)
 	}
@@ -118,7 +125,8 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 }
 
 // shouldSkipFile returns true if the file should be excluded from duplicate detection.
-// Some files are legitimately duplicated by design and shouldn't be reported.
+// The excluded patterns are iOS-specific (PrivacyInfo.xcprivacy, .car) but are harmless
+// on Android since these files never appear in APK/AAB archives.
 func shouldSkipFile(path string) bool {
 	filename := filepath.Base(path)
 
