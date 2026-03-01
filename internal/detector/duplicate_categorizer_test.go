@@ -487,6 +487,40 @@ func TestNewRuleRegistryWithConfig_AndroidNoSmallDuplicates(t *testing.T) {
 	assert.Equal(t, "rule-9-asset-duplication", rules[0].ID())
 }
 
+func TestNewRuleRegistryWithConfig_iOSPlatform(t *testing.T) {
+	config := RuleConfig{
+		FilterSmallDuplicates: true,
+		Platform:              PlatformIOS,
+	}
+	registry := NewRuleRegistryWithConfig(config)
+
+	rules := registry.GetRules()
+	// iOS should have all 12 rules:
+	// Rules 1-7 (iOS filtering) + Rule 10 (small duplicates) +
+	// Rules 11-12 (device variant, font extension) + Rule 8 (extension duplication) +
+	// Rule 9 (asset duplication)
+	require.Equal(t, 12, len(rules), "iOS should have all 12 rules")
+
+	ruleIDs := make(map[string]bool)
+	for _, rule := range rules {
+		ruleIDs[rule.ID()] = true
+	}
+
+	// Verify all iOS-specific rules are present
+	assert.True(t, ruleIDs["rule-1-info-plist"], "Should have Info.plist rule")
+	assert.True(t, ruleIDs["rule-2-nib-variants"], "Should have NIB variants rule")
+	assert.True(t, ruleIDs["rule-3-contents-json"], "Should have Contents.json rule")
+	assert.True(t, ruleIDs["rule-4-localization"], "Should have localization rule")
+	assert.True(t, ruleIDs["rule-5-framework-scripts"], "Should have framework scripts rule")
+	assert.True(t, ruleIDs["rule-6-framework-metadata"], "Should have framework metadata rule")
+	assert.True(t, ruleIDs["rule-7-third-party-sdk"], "Should have third-party SDK rule")
+	assert.True(t, ruleIDs["rule-8-extension-duplication"], "Should have extension duplication rule")
+	assert.True(t, ruleIDs["rule-9-asset-duplication"], "Should have asset duplication rule")
+	assert.True(t, ruleIDs["rule-10-small-duplicates"], "Should have small duplicates rule")
+	assert.True(t, ruleIDs["rule-11-device-variant"], "Should have device variant rule")
+	assert.True(t, ruleIDs["rule-12-font-extension"], "Should have font extension rule")
+}
+
 func TestLocalizationRule(t *testing.T) {
 	rule := NewLocalizationRule()
 

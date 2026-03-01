@@ -71,7 +71,10 @@ func getRemovalReason(pattern string) string {
 }
 
 
-// UnnecessaryFilesDetector implements the Detector interface
+// UnnecessaryFilesDetector implements the Detector interface.
+// This detector is iOS-only: all patterns are iOS build artifacts (.swiftmodule, .h, etc.)
+// and savings are calculated using iOS APFS 4KB block alignment.
+// The orchestrator gates this detector to PlatformIOS.
 type UnnecessaryFilesDetector struct{}
 
 // NewUnnecessaryFilesDetector creates a new unnecessary files detector

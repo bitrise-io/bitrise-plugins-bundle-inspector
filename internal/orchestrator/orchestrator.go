@@ -46,16 +46,19 @@ func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*t
 		return nil, fmt.Errorf("analysis failed: %w", err)
 	}
 
+	// Determine platform once, reuse throughout the workflow
+	platform := o.detectPlatform(report.ArtifactInfo.Type)
+
 	// Run duplicate detection and additional optimizations if enabled
 	if o.IncludeDuplicates {
-		if err := o.runDetectors(report, artifactPath); err != nil {
+		if err := o.runDetectors(report, artifactPath, platform); err != nil {
 			// Log warning but don't fail
 			o.Logger.Warn("detector execution had issues: %v", err)
 		}
 	}
 
 	// Generate optimization recommendations
-	report.Optimizations = o.generateOptimizations(report)
+	report.Optimizations = o.generateOptimizations(report, platform)
 	report.TotalSavings = calculateTotalSavings(report)
 
 	// Add Git/CI metadata if available
@@ -65,8 +68,7 @@ func (o *Orchestrator) RunAnalysis(ctx context.Context, artifactPath string) (*t
 }
 
 // runDetectors executes duplicate detection and additional optimization detectors
-func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string) error {
-	platform := o.detectPlatform(report.ArtifactInfo.Type)
+func (o *Orchestrator) runDetectors(report *types.Report, artifactPath string, platform detector.Platform) error {
 
 	// Extract artifact for duplicate detection
 	extractPath, shouldCleanup, err := o.extractArtifact(report.ArtifactInfo.Type, artifactPath)
@@ -178,12 +180,11 @@ func (o *Orchestrator) isIOSArtifact(artifactType types.ArtifactType) bool {
 
 // generateOptimizations creates optimization recommendations from analysis results.
 // report.Duplicates is already filtered to actionable only by runDetectors.
-func (o *Orchestrator) generateOptimizations(report *types.Report) []types.Optimization {
+func (o *Orchestrator) generateOptimizations(report *types.Report, platform detector.Platform) []types.Optimization {
 	// Start with existing optimizations (from analyzers like strip-symbols, etc.)
 	optimizations := report.Optimizations
 
 	// Create duplicate categorizer to get priority info for each actionable duplicate
-	platform := o.detectPlatform(report.ArtifactInfo.Type)
 	categorizer := detector.NewDuplicateCategorizerWithConfig(o.ruleConfig(platform))
 
 	// Add duplicate file optimizations (already filtered to actionable only)

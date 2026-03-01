@@ -125,7 +125,8 @@ func (d *DuplicateDetector) DetectDuplicates(rootPath string) ([]types.Duplicate
 }
 
 // shouldSkipFile returns true if the file should be excluded from duplicate detection.
-// Some files are legitimately duplicated by design and shouldn't be reported.
+// The excluded patterns are iOS-specific (PrivacyInfo.xcprivacy, .car) but are harmless
+// on Android since these files never appear in APK/AAB archives.
 func shouldSkipFile(path string) bool {
 	filename := filepath.Base(path)
 

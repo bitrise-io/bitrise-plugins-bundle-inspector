@@ -19,7 +19,10 @@ type SmallFile struct {
 	Extension  string
 }
 
-// SmallFilesDetector implements the Detector interface
+// SmallFilesDetector implements the Detector interface.
+// This detector is iOS-only: it identifies files smaller than the APFS 4KB block size
+// where the wasted block padding is significant relative to content.
+// The orchestrator gates this detector to PlatformIOS.
 type SmallFilesDetector struct{}
 
 // NewSmallFilesDetector creates a new small files detector

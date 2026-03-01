@@ -111,38 +111,55 @@ func measureActualHEICConversion(imagePath string) (int64, error) {
 }
 
 // measureActualWebPConversion converts an image to WebP using cwebp and measures real savings.
+// For PNG inputs, uses lossless WebP compression to preserve quality.
+// For JPEG inputs, uses lossy WebP at quality 80.
 // Returns savings in bytes, or error if cwebp is not available or conversion fails.
 func measureActualWebPConversion(imagePath string) (int64, error) {
 	if _, err := exec.LookPath("cwebp"); err != nil {
-		return 0, fmt.Errorf("cwebp not available")
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("cwebp not available"))
 	}
 
 	originalInfo, err := os.Stat(imagePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to stat original: %w", err)
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("failed to stat original: %w", err))
 	}
 
 	tmpFile, err := os.CreateTemp("", "webp_conversion_*.webp")
 	if err != nil {
-		return 0, fmt.Errorf("failed to create temp file: %w", err)
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("failed to create temp file: %w", err))
 	}
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
-	cmd := exec.Command("cwebp", "-q", "80", imagePath, "-o", tmpPath)
+	// Use lossless compression for PNG (preserves transparency and quality),
+	// lossy compression for JPEG (already lossy, so lossy WebP is appropriate)
+	ext := strings.ToLower(filepath.Ext(imagePath))
+	var cmd *exec.Cmd
+	if ext == ".png" {
+		cmd = exec.Command("cwebp", "-lossless", imagePath, "-o", tmpPath)
+	} else {
+		cmd = exec.Command("cwebp", "-q", "80", imagePath, "-o", tmpPath)
+	}
+
 	if err := cmd.Run(); err != nil {
-		return 0, fmt.Errorf("cwebp conversion failed: %w", err)
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("cwebp conversion failed: %w", err))
 	}
 
 	convertedInfo, err := os.Stat(tmpPath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to stat converted: %w", err)
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("failed to stat converted: %w", err))
 	}
 
 	savings := originalInfo.Size() - convertedInfo.Size()
 	if savings <= 0 {
-		return 0, fmt.Errorf("no savings achieved (WebP: %d bytes vs original: %d bytes)", convertedInfo.Size(), originalInfo.Size())
+		return 0, WrapError("image-optimization", "measuring WebP conversion",
+			fmt.Errorf("no savings achieved (WebP: %d bytes vs original: %d bytes)", convertedInfo.Size(), originalInfo.Size()))
 	}
 
 	return savings, nil
@@ -153,7 +170,8 @@ func measureActualWebPConversion(imagePath string) (int64, error) {
 func estimateWebPSavings(imagePath string) (int64, error) {
 	info, err := os.Stat(imagePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to stat file: %w", err)
+		return 0, WrapError("image-optimization", "estimating WebP savings",
+			fmt.Errorf("failed to stat file: %w", err))
 	}
 	originalSize := info.Size()
 
@@ -161,7 +179,8 @@ func estimateWebPSavings(imagePath string) (int64, error) {
 	// Based on Google's published WebP compression benchmarks
 	savings := int64(float64(originalSize) * 0.25)
 	if savings <= 0 {
-		return 0, fmt.Errorf("no estimated savings")
+		return 0, WrapError("image-optimization", "estimating WebP savings",
+			fmt.Errorf("no estimated savings"))
 	}
 
 	return savings, nil
@@ -205,22 +224,22 @@ func (d *ImageOptimizationDetector) measureSavings(imagePath string) (int64, err
 }
 
 // buildRecommendation creates platform-appropriate description and action text
-func (d *ImageOptimizationDetector) buildRecommendation(formatName, imagePath, ext string, savings int64) (description, action string) {
+func (d *ImageOptimizationDetector) buildRecommendation(formatName, imagePath, ext string, savings int64) (string, string) {
 	if d.platform == PlatformAndroid {
-		description = fmt.Sprintf("%s can be converted to WebP format for better compression. "+
+		description := fmt.Sprintf("%s can be converted to WebP format for better compression. "+
 			"Estimated savings: %s", formatName, util.FormatBytes(savings))
-		action = "Convert to WebP format (supported since Android 4.0 for lossy, Android 4.3 for lossless and transparency)"
-		return
+		action := "Convert to WebP format (supported since Android 4.0 for lossy, Android 4.3 for lossless and transparency)"
+		return description, action
 	}
 
 	alphaNote := ""
 	if ext == ".png" && hasAlpha(imagePath) {
 		alphaNote = " (has transparency - supported in iOS 11+)"
 	}
-	description = fmt.Sprintf("%s can be converted to HEIC format for better compression. "+
+	description := fmt.Sprintf("%s can be converted to HEIC format for better compression. "+
 		"Measured savings: %s%s", formatName, util.FormatBytes(savings), alphaNote)
-	action = "Convert to HEIC format using Xcode Asset Catalog (Image Set with Preserve Vector Data disabled)"
-	return
+	action := "Convert to HEIC format using Xcode Asset Catalog (Image Set with Preserve Vector Data disabled)"
+	return description, action
 }
 
 // Detect runs the detector and returns optimizations

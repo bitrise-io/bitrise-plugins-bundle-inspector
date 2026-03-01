@@ -30,6 +30,8 @@ type RuleConfig struct {
 }
 
 // DefaultRuleConfig returns the default rule configuration.
+// The zero-value Platform (empty string) is treated as iOS for backward compatibility:
+// all iOS-specific rules are registered, matching pre-platform-aware behavior.
 func DefaultRuleConfig() RuleConfig {
 	return RuleConfig{
 		FilterSmallDuplicates: true,
@@ -72,8 +74,8 @@ func NewRuleRegistryWithConfig(config RuleConfig) *RuleRegistry {
 		registry.Register(NewSmallDuplicatesRule())
 	}
 
-	// Register iOS-only filtering rules (Rules 11-12) and actionable Rule 8.
-	// These reference iOS-specific concepts (.appex extensions, device idioms).
+	// Register iOS-only rules: Rule 11 (DeviceVariant), Rule 12 (FontExtension),
+	// and actionable Rule 8 (ExtensionDuplication / .appex).
 	if config.Platform != PlatformAndroid {
 		registry.Register(NewDeviceVariantRule())
 		registry.Register(NewFontExtensionRule())
